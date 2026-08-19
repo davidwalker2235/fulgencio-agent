@@ -149,6 +149,10 @@ activemq-data/
 
 # Environments
 .env
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
 .envrc
 .venv
 env/

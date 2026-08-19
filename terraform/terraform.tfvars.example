@@ -1,0 +1,15 @@
+name_prefix = "fulgencio-agent"
+location    = "westeurope"
+image_name = "fulgencio-agent:latest"
+
+azure_openai_endpoint    = "https://replace-me.openai.azure.com/"
+azure_openai_api_key     = "replace-me"
+azure_openai_api_version = "2024-10-01-preview"
+litellm_master_key       = "replace-me"
+
+firebase_database_url         = "https://replace-me-default-rtdb.firebaseio.com"
+firebase_service_account_json = "{\"type\":\"service_account\",\"project_id\":\"replace-me\"}"
+azure_sql_connection_string   = "Server=tcp:replace-me.database.windows.net,1433;Database=replace-me;UID=replace-me;PWD=replace-me;Encrypt=yes;"
+ws_basic_username             = "replace-me"
+ws_basic_password             = "replace-me"
+

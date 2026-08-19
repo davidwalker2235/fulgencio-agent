@@ -1,0 +1,147 @@
+name: Test and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_WORKING_DIR: terraform
+  TFSTATE_RESOURCE_GROUP: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
+  TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
+  TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
+  TF_VAR_image_name: fulgencio-agent:${{ github.sha }}
+  TF_VAR_azure_openai_endpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+  TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
+  TF_VAR_azure_openai_api_version: ${{ secrets.AZURE_OPENAI_API_VERSION }}
+  TF_VAR_litellm_master_key: ${{ secrets.LITELLM_MASTER_KEY }}
+  TF_VAR_firebase_database_url: ${{ secrets.FIREBASE_DATABASE_URL }}
+  TF_VAR_firebase_service_account_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+  TF_VAR_azure_sql_connection_string: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+  TF_VAR_ws_basic_username: ${{ secrets.WS_BASIC_USERNAME }}
+  TF_VAR_ws_basic_password: ${{ secrets.WS_BASIC_PASSWORD }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          required=(
+            TFSTATE_RESOURCE_GROUP
+            TFSTATE_STORAGE_ACCOUNT
+            TFSTATE_CONTAINER
+            TF_VAR_azure_openai_endpoint
+            TF_VAR_azure_openai_api_key
+            TF_VAR_litellm_master_key
+            TF_VAR_firebase_database_url
+            TF_VAR_firebase_service_account_json
+            TF_VAR_azure_sql_connection_string
+            TF_VAR_ws_basic_username
+            TF_VAR_ws_basic_password
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Falta $name"
+              exit 1
+            fi
+          done
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+
+      - name: Terraform format and validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Bootstrap independent Terraform state
+        shell: bash
+        run: |
+          az group create \
+            --name "$TFSTATE_RESOURCE_GROUP" \
+            --location westeurope \
+            --output none
+          if ! az storage account show \
+            --resource-group "$TFSTATE_RESOURCE_GROUP" \
+            --name "$TFSTATE_STORAGE_ACCOUNT" \
+            --output none 2>/dev/null; then
+            az storage account create \
+              --resource-group "$TFSTATE_RESOURCE_GROUP" \
+              --name "$TFSTATE_STORAGE_ACCOUNT" \
+              --location westeurope \
+              --sku Standard_LRS \
+              --min-tls-version TLS1_2 \
+              --output none
+          fi
+          STORAGE_KEY=$(az storage account keys list \
+            --resource-group "$TFSTATE_RESOURCE_GROUP" \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --query '[0].value' --output tsv)
+          az storage container create \
+            --name "$TFSTATE_CONTAINER" \
+            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
+            --account-key "$STORAGE_KEY" \
+            --output none
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: >-
+          terraform init -reconfigure
+          -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP"
+          -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
+          -backend-config="container_name=$TFSTATE_CONTAINER"
+          -backend-config="key=fulgencio-agent.tfstate"
+
+      - name: Provision resource group and registry
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve -target=azurerm_resource_group.main -target=azurerm_container_registry.main
+
+      - name: Build and push image
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          ACR_NAME=$(terraform output -raw acr_name)
+          ACR_SERVER=$(terraform output -raw acr_login_server)
+          az acr login --name "$ACR_NAME"
+          docker build -t "$ACR_SERVER/${TF_VAR_image_name}" ..
+          docker push "$ACR_SERVER/${TF_VAR_image_name}"
+
+      - name: Deploy
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve
+
+      - name: Check readiness
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          FQDN=$(terraform output -raw fqdn)
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error "https://${FQDN}/health/ready"; then
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1

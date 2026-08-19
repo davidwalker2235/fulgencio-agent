@@ -1,0 +1,17 @@
+model_list:
+  - model_name: gpt-realtime-1.5
+    litellm_params:
+      model: openai/gpt-realtime-1.5
+      api_base: os.environ/AZURE_OPENAI_ENDPOINT
+      api_key: os.environ/AZURE_OPENAI_API_KEY
+      api_version: os.environ/AZURE_OPENAI_API_VERSION
+    model_info:
+      mode: realtime
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  num_retries: 2
+  request_timeout: 90
+
