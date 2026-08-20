@@ -61,6 +61,21 @@ jobs:
         with:
           terraform_version: "1.10.5"
 
+      - name: Validate Azure credentials secret
+        shell: bash
+        env:
+          AZURE_CREDENTIALS_JSON: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          if [ -z "${AZURE_CREDENTIALS_JSON:-}" ]; then
+            echo "Falta el GitHub Secret AZURE_CREDENTIALS en este repositorio."
+            exit 1
+          fi
+          if ! jq -e '(.clientId and .clientSecret and .subscriptionId and .tenantId)' \
+            <<< "$AZURE_CREDENTIALS_JSON" >/dev/null; then
+            echo "AZURE_CREDENTIALS debe contener clientId, clientSecret, subscriptionId y tenantId."
+            exit 1
+          fi
+
       - name: Terraform format and validate
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
@@ -78,6 +93,11 @@ jobs:
           AZURE_CREDENTIALS_JSON: ${{ secrets.AZURE_CREDENTIALS }}
         run: |
           subscription_id=$(jq -r '.subscriptionId' <<< "$AZURE_CREDENTIALS_JSON")
+          if [ -z "$subscription_id" ] || [ "$subscription_id" = "null" ]; then
+            echo "AZURE_CREDENTIALS no contiene subscriptionId válido."
+            exit 1
+          fi
+          echo "ARM_SUBSCRIPTION_ID=$subscription_id" >> "$GITHUB_ENV"
           compact_subscription=$(tr -d '-' <<< "$subscription_id")
           state_account="fulgenciotf${compact_subscription:0:10}"
           echo "TFSTATE_STORAGE_ACCOUNT=$state_account" >> "$GITHUB_ENV"
