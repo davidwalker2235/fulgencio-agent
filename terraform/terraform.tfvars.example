@@ -1,6 +1,10 @@
-name_prefix = "fulgencio-agent"
-location    = "westeurope"
-image_name = "fulgencio-agent:latest"
+resource_group_name = "fulgencio-rg"
+acr_name            = "fulgencioacr"
+environment_name    = "fulgencio-env"
+identity_name       = "fulgencio-identity"
+container_app_name  = "fulgencio-agent"
+location            = "West Europe"
+image_name          = "fulgencio-agent:latest"
 
 azure_openai_endpoint    = "https://replace-me.openai.azure.com/"
 azure_openai_api_key     = "replace-me"
@@ -12,4 +16,3 @@ firebase_service_account_json = "{\"type\":\"service_account\",\"project_id\":\"
 azure_sql_connection_string   = "Server=tcp:replace-me.database.windows.net,1433;Database=replace-me;UID=replace-me;PWD=replace-me;Encrypt=yes;"
 ws_basic_username             = "replace-me"
 ws_basic_password             = "replace-me"
-

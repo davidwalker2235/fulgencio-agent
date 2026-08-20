@@ -1,4 +1,4 @@
-name: Test and deploy
+name: Test and deploy Fulgencio agent
 
 on:
   push:
@@ -8,11 +8,26 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: fulgencio-agent-production
+  cancel-in-progress: false
+
 env:
   TF_WORKING_DIR: terraform
-  TFSTATE_RESOURCE_GROUP: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
-  TFSTATE_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
-  TFSTATE_CONTAINER: ${{ secrets.TFSTATE_CONTAINER }}
+  AZURE_RESOURCE_GROUP: fulgencio-rg
+  AZURE_LOCATION: West Europe
+  ACR_NAME: fulgencioacr
+  CONTAINER_APP_ENVIRONMENT: fulgencio-env
+  CONTAINER_APP_NAME: fulgencio-agent
+  TFSTATE_RESOURCE_GROUP: fulgencio-tfstate-rg
+  TFSTATE_CONTAINER: tfstate
+  TFSTATE_KEY: fulgencio-agent.terraform.tfstate
+
+  TF_VAR_resource_group_name: fulgencio-rg
+  TF_VAR_acr_name: fulgencioacr
+  TF_VAR_environment_name: fulgencio-env
+  TF_VAR_identity_name: fulgencio-identity
+  TF_VAR_container_app_name: fulgencio-agent
   TF_VAR_image_name: fulgencio-agent:${{ github.sha }}
   TF_VAR_azure_openai_endpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
   TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
@@ -21,12 +36,13 @@ env:
   TF_VAR_firebase_database_url: ${{ secrets.FIREBASE_DATABASE_URL }}
   TF_VAR_firebase_service_account_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
   TF_VAR_azure_sql_connection_string: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
-  TF_VAR_ws_basic_username: ${{ secrets.WS_BASIC_USERNAME }}
-  TF_VAR_ws_basic_password: ${{ secrets.WS_BASIC_PASSWORD }}
+  TF_VAR_ws_basic_username: ${{ secrets.FULGENCIO_WS_BASIC_USERNAME }}
+  TF_VAR_ws_basic_password: ${{ secrets.FULGENCIO_WS_BASIC_PASSWORD }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -36,30 +52,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Validate deployment configuration
-        shell: bash
-        run: |
-          required=(
-            TFSTATE_RESOURCE_GROUP
-            TFSTATE_STORAGE_ACCOUNT
-            TFSTATE_CONTAINER
-            TF_VAR_azure_openai_endpoint
-            TF_VAR_azure_openai_api_key
-            TF_VAR_litellm_master_key
-            TF_VAR_firebase_database_url
-            TF_VAR_firebase_service_account_json
-            TF_VAR_azure_sql_connection_string
-            TF_VAR_ws_basic_username
-            TF_VAR_ws_basic_password
-          )
-          for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              echo "Falta $name"
-              exit 1
-            fi
-          done
+        run: python -m pip install -r requirements.txt
 
       - name: Run tests
         run: python -m unittest discover -s tests -v
@@ -79,69 +72,108 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Bootstrap independent Terraform state
+      - name: Configure shared Terraform state
+        shell: bash
+        env:
+          AZURE_CREDENTIALS_JSON: ${{ secrets.AZURE_CREDENTIALS }}
+        run: |
+          subscription_id=$(jq -r '.subscriptionId' <<< "$AZURE_CREDENTIALS_JSON")
+          compact_subscription=$(tr -d '-' <<< "$subscription_id")
+          state_account="fulgenciotf${compact_subscription:0:10}"
+          echo "TFSTATE_STORAGE_ACCOUNT=$state_account" >> "$GITHUB_ENV"
+
+      - name: Validate deployment configuration
         shell: bash
         run: |
-          az group create \
-            --name "$TFSTATE_RESOURCE_GROUP" \
-            --location westeurope \
-            --output none
-          if ! az storage account show \
-            --resource-group "$TFSTATE_RESOURCE_GROUP" \
-            --name "$TFSTATE_STORAGE_ACCOUNT" \
-            --output none 2>/dev/null; then
-            az storage account create \
-              --resource-group "$TFSTATE_RESOURCE_GROUP" \
-              --name "$TFSTATE_STORAGE_ACCOUNT" \
-              --location westeurope \
-              --sku Standard_LRS \
-              --min-tls-version TLS1_2 \
-              --output none
-          fi
-          STORAGE_KEY=$(az storage account keys list \
+          required=(
+            TF_VAR_azure_openai_endpoint
+            TF_VAR_azure_openai_api_key
+            TF_VAR_azure_openai_api_version
+            TF_VAR_litellm_master_key
+            TF_VAR_firebase_database_url
+            TF_VAR_firebase_service_account_json
+            TF_VAR_azure_sql_connection_string
+            TF_VAR_ws_basic_username
+            TF_VAR_ws_basic_password
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Falta $name"
+              exit 1
+            fi
+          done
+
+      - name: Read shared Terraform state key
+        shell: bash
+        run: |
+          state_access_key=$(az storage account keys list \
             --resource-group "$TFSTATE_RESOURCE_GROUP" \
             --account-name "$TFSTATE_STORAGE_ACCOUNT" \
             --query '[0].value' --output tsv)
-          az storage container create \
-            --name "$TFSTATE_CONTAINER" \
-            --account-name "$TFSTATE_STORAGE_ACCOUNT" \
-            --account-key "$STORAGE_KEY" \
-            --output none
+          echo "::add-mask::$state_access_key"
+          echo "ARM_ACCESS_KEY=$state_access_key" >> "$GITHUB_ENV"
 
       - name: Terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: >-
-          terraform init -reconfigure
-          -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP"
-          -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT"
-          -backend-config="container_name=$TFSTATE_CONTAINER"
-          -backend-config="key=fulgencio-agent.tfstate"
-
-      - name: Provision resource group and registry
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -auto-approve -target=azurerm_resource_group.main -target=azurerm_container_registry.main
-
-      - name: Build and push image
-        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          ACR_NAME=$(terraform output -raw acr_name)
-          ACR_SERVER=$(terraform output -raw acr_login_server)
-          az acr login --name "$ACR_NAME"
-          docker build -t "$ACR_SERVER/${TF_VAR_image_name}" ..
-          docker push "$ACR_SERVER/${TF_VAR_image_name}"
+          terraform init -reconfigure \
+            -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TFSTATE_CONTAINER" \
+            -backend-config="key=$TFSTATE_KEY"
 
-      - name: Deploy
+      - name: Verify shared Azure resources
+        run: |
+          az group show --name "$AZURE_RESOURCE_GROUP" --output none
+          az acr show --name "$ACR_NAME" --resource-group "$AZURE_RESOURCE_GROUP" --output none
+          az containerapp env show \
+            --name "$CONTAINER_APP_ENVIRONMENT" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --output none
+
+      - name: Build and push agent image
+        run: |
+          acr_username=$(az acr credential show \
+            --name "$ACR_NAME" \
+            --query username --output tsv)
+          acr_password=$(az acr credential show \
+            --name "$ACR_NAME" \
+            --query 'passwords[0].value' --output tsv)
+          echo "::add-mask::$acr_password"
+          docker login "$ACR_NAME.azurecr.io" \
+            --username "$acr_username" \
+            --password "$acr_password"
+          docker build \
+            --tag "$ACR_NAME.azurecr.io/$TF_VAR_image_name" \
+            .
+          docker push "$ACR_NAME.azurecr.io/$TF_VAR_image_name"
+          docker logout "$ACR_NAME.azurecr.io"
+
+      - name: Deploy agent Container App
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve
 
       - name: Check readiness
         working-directory: ${{ env.TF_WORKING_DIR }}
+        shell: bash
         run: |
-          FQDN=$(terraform output -raw fqdn)
+          fqdn=$(terraform output -raw fqdn)
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error "https://${FQDN}/health/ready"; then
+            if curl --fail --silent --show-error "https://${fqdn}/health/ready"; then
+              echo
+              echo "Agent ready at wss://${fqdn}/ws"
               exit 0
             fi
             sleep 10
           done
           exit 1
+
+      - name: Publish deployment URL
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        shell: bash
+        run: |
+          {
+            echo "## Fulgencio agent"
+            echo
+            echo "**WebSocket:** wss://$(terraform output -raw fqdn)/ws"
+          } >> "$GITHUB_STEP_SUMMARY"

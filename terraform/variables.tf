@@ -1,13 +1,37 @@
-variable "name_prefix" {
+variable "resource_group_name" {
   type        = string
-  description = "Prefijo corto y único para los recursos."
+  description = "Resource Group existente que aloja Fulgencio."
+  default     = "fulgencio-rg"
+}
+
+variable "acr_name" {
+  type        = string
+  description = "ACR existente compartido con fulgencio-project."
+  default     = "fulgencioacr"
+}
+
+variable "environment_name" {
+  type        = string
+  description = "Container Apps Environment existente."
+  default     = "fulgencio-env"
+}
+
+variable "identity_name" {
+  type        = string
+  description = "Identidad administrada existente con AcrPull."
+  default     = "fulgencio-identity"
+}
+
+variable "container_app_name" {
+  type        = string
+  description = "Nombre de la nueva Container App."
   default     = "fulgencio-agent"
 }
 
 variable "location" {
   type        = string
-  description = "Región de Azure."
-  default     = "westeurope"
+  description = "Solo informativo para documentación local."
+  default     = "West Europe"
 }
 
 variable "image_name" {
@@ -60,4 +84,3 @@ variable "ws_basic_password" {
   type      = string
   sensitive = true
 }
-

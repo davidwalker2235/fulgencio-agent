@@ -42,10 +42,12 @@ python -m unittest discover -s tests -v
 
 ## Despliegue
 
-El directorio `terraform/` crea recursos aislados y una Container App de una
-réplica con dos contenedores: `agent` y `litellm`. El workflow
+El directorio `terraform/` usa el Resource Group `fulgencio-rg`, el ACR
+`fulgencioacr`, la identidad `fulgencio-identity` y el entorno
+`fulgencio-env` ya existentes. Solo crea la Container App `fulgencio-agent`,
+con una réplica y dos contenedores: `agent` y `litellm`. El workflow
 `.github/workflows/deploy.yml` ejecuta pruebas, valida Terraform, publica la
-imagen en ACR, despliega y comprueba readiness.
+imagen en el ACR compartido, despliega y comprueba readiness.
 
 El estado de Terraform usa un backend `azurerm` independiente. Configura en el
 repositorio los secretos descritos en `terraform/terraform.tfvars.example` y
@@ -58,10 +60,12 @@ los secretos de GitHub indicados al final de este documento.
 - `LITELLM_MASTER_KEY`.
 - `FIREBASE_DATABASE_URL`, `FIREBASE_SERVICE_ACCOUNT_JSON`.
 - `AZURE_SQL_CONNECTION_STRING`.
-- `WS_BASIC_USERNAME`, `WS_BASIC_PASSWORD`.
-- `TFSTATE_RESOURCE_GROUP`, `TFSTATE_STORAGE_ACCOUNT`, `TFSTATE_CONTAINER`.
+- `FULGENCIO_WS_BASIC_USERNAME`, `FULGENCIO_WS_BASIC_PASSWORD`.
+
+El estado remoto reutiliza automáticamente la cuenta que usa el proyecto
+existente y la clave independiente `fulgencio-agent.terraform.tfstate`.
 
 ### Backend existente
 
-Configura `VOICE_AGENT_TYPE=fulgencio_agent` y
-`FULGENCIO_AGENT_URL=wss://<usuario>:<clave-codificada>@<fqdn>/ws`.
+Configura en el proyecto existente la variable `VOICE_AGENT_TYPE=fulgencio_agent`
+y el secret `FULGENCIO_AGENT_URL=wss://<usuario>:<clave-codificada>@<fqdn>/ws`.

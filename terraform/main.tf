@@ -1,58 +1,42 @@
-resource "random_string" "suffix" {
-  length  = 6
-  upper   = false
-  special = false
+data "azurerm_resource_group" "main" {
+  name = var.resource_group_name
+}
+
+data "azurerm_container_registry" "main" {
+  name                = var.acr_name
+  resource_group_name = data.azurerm_resource_group.main.name
+}
+
+data "azurerm_container_app_environment" "main" {
+  name                = var.environment_name
+  resource_group_name = data.azurerm_resource_group.main.name
+}
+
+data "azurerm_user_assigned_identity" "main" {
+  name                = var.identity_name
+  resource_group_name = data.azurerm_resource_group.main.name
 }
 
 locals {
-  resource_name = "${var.name_prefix}-${random_string.suffix.result}"
-  agent_image   = "${azurerm_container_registry.main.login_server}/${var.image_name}"
-}
-
-resource "azurerm_resource_group" "main" {
-  name     = "rg-${local.resource_name}"
-  location = var.location
-}
-
-resource "azurerm_container_registry" "main" {
-  name                = replace("acr${local.resource_name}", "-", "")
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  sku                 = "Basic"
-  admin_enabled       = true
-}
-
-resource "azurerm_log_analytics_workspace" "main" {
-  name                = "log-${local.resource_name}"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-}
-
-resource "azurerm_container_app_environment" "main" {
-  name                       = "cae-${local.resource_name}"
-  resource_group_name        = azurerm_resource_group.main.name
-  location                   = azurerm_resource_group.main.location
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+  agent_image = "${data.azurerm_container_registry.main.login_server}/${var.image_name}"
 }
 
 resource "azurerm_container_app" "main" {
-  name                         = "ca-${local.resource_name}"
-  resource_group_name          = azurerm_resource_group.main.name
-  container_app_environment_id = azurerm_container_app_environment.main.id
+  name                         = var.container_app_name
+  resource_group_name          = data.azurerm_resource_group.main.name
+  container_app_environment_id = data.azurerm_container_app_environment.main.id
   revision_mode                = "Single"
 
-  registry {
-    server               = azurerm_container_registry.main.login_server
-    username             = azurerm_container_registry.main.admin_username
-    password_secret_name = "acr-password"
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [data.azurerm_user_assigned_identity.main.id]
   }
 
-  secret {
-    name  = "acr-password"
-    value = azurerm_container_registry.main.admin_password
+  registry {
+    server   = data.azurerm_container_registry.main.login_server
+    identity = data.azurerm_user_assigned_identity.main.id
   }
+
   secret {
     name  = "azure-openai-api-key"
     value = var.azure_openai_api_key
