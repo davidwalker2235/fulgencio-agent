@@ -35,6 +35,9 @@ class VoiceSession:
         self._tools = ToolExecutor(self._machine, users, robot)
         self._front_send_lock = asyncio.Lock()
         self._handled_function_calls: set[str] = set()
+        self._response_lock = asyncio.Lock()
+        self._response_pending = False
+        self._pending_response_instructions: str | None = None
         self._drawing_monitor: asyncio.Task[None] | None = None
         self._response_idle = asyncio.Event()
         self._response_idle.set()
@@ -45,7 +48,8 @@ class VoiceSession:
             await self._send_frontend(
                 frontend, {"type": "session.created", "message": "Sesión iniciada"}
             )
-            await realtime.create_response(
+            await self._request_response(
+                realtime,
                 "Saluda brevemente como Fulgencio y ofrece una caricatura o un regalo."
             )
             frontend_task = asyncio.create_task(self._receive_frontend(frontend, realtime))
@@ -94,12 +98,16 @@ class VoiceSession:
     ) -> None:
         while True:
             event = await realtime.receive_event()
-            if event.get("type") == "response.created":
+            event_type = event.get("type")
+            if event_type == "response.created":
                 self._response_idle.clear()
-            elif event.get("type") == "response.done":
-                self._response_idle.set()
+            elif event_type == "response.done":
+                await self._complete_response(realtime)
             for frontend_event in to_frontend_events(event):
                 await self._send_frontend(frontend, frontend_event)
+
+            if event_type == "input_audio_buffer.committed":
+                await self._request_response(realtime)
 
             function_call = parse_function_call(event)
             if function_call is None or function_call.call_id in self._handled_function_calls:
@@ -123,7 +131,7 @@ class VoiceSession:
             )
             await realtime.send_tool_output(function_call.call_id, result_payload)
             await realtime.configure(self._machine)
-            await realtime.create_response()
+            await self._request_response(realtime)
 
             if (
                 result.status == "ok"
@@ -143,14 +151,16 @@ class VoiceSession:
             await realtime.configure(self._machine)
             await self._interrupt_active_response(realtime)
             if outcome.completed:
-                await realtime.create_response(
+                await self._request_response(
+                    realtime,
                     "Anuncia que la caricatura está lista y despídete brevemente."
                 )
             else:
                 await self._send_frontend(
                     frontend, {"type": "error", "message": outcome.message}
                 )
-                await realtime.create_response(
+                await self._request_response(
+                    realtime,
                     "Informa brevemente de que el robot no pudo terminar la caricatura. "
                     "No digas que está lista y despídete."
                 )
@@ -166,10 +176,44 @@ class VoiceSession:
             )
             await realtime.configure(self._machine)
             await self._interrupt_active_response(realtime)
-            await realtime.create_response(
+            await self._request_response(
+                realtime,
                 "Informa de que no puedes confirmar que la caricatura haya terminado. "
                 "No afirmes que está lista y despídete."
             )
+
+    async def _request_response(
+        self,
+        realtime: LiteLLMRealtimeClient,
+        instructions: str | None = None,
+    ) -> None:
+        async with self._response_lock:
+            if not self._response_idle.is_set():
+                self._response_pending = True
+                if instructions is not None:
+                    self._pending_response_instructions = instructions
+                return
+            self._response_idle.clear()
+            try:
+                await realtime.create_response(instructions)
+            except Exception:
+                self._response_idle.set()
+                raise
+
+    async def _complete_response(self, realtime: LiteLLMRealtimeClient) -> None:
+        async with self._response_lock:
+            self._response_idle.set()
+            if not self._response_pending:
+                return
+            instructions = self._pending_response_instructions
+            self._response_pending = False
+            self._pending_response_instructions = None
+            self._response_idle.clear()
+            try:
+                await realtime.create_response(instructions)
+            except Exception:
+                self._response_idle.set()
+                raise
 
     async def _interrupt_active_response(self, realtime: LiteLLMRealtimeClient) -> None:
         if self._response_idle.is_set():

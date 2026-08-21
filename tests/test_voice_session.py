@@ -1,0 +1,130 @@
+from __future__ import annotations
+
+import asyncio
+import unittest
+from typing import Any
+
+from app.agent.session import VoiceSession
+from app.core.config import Settings
+from app.domain.models import DrawingOutcome
+
+
+class FakeUsers:
+    async def get_by_id(self, user_id: int) -> None:
+        return None
+
+
+class FakeRobot:
+    async def get_status(self) -> str:
+        return "idle"
+
+    async def publish_gift(self) -> None:
+        return None
+
+    async def publish_caricature(self, user: Any) -> None:
+        return None
+
+    async def wait_for_drawing_completion(self) -> DrawingOutcome:
+        return DrawingOutcome("idle", True, "done")
+
+
+class FakeFrontend:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, Any]] = []
+
+    async def send_json(self, payload: dict[str, Any]) -> None:
+        self.messages.append(payload)
+
+
+class FakeRealtime:
+    def __init__(self) -> None:
+        self.events = [
+            {"type": "response.created"},
+            {
+                "type": "response.function_call_arguments.done",
+                "call_id": "call-1",
+                "name": "choose_experience",
+                "arguments": '{"experience":"caricature"}',
+            },
+            {"type": "response.done"},
+        ]
+        self.response_done_seen = False
+        self.response_create_after_done: list[bool] = []
+        self.followup_created = asyncio.Event()
+
+    async def receive_event(self) -> dict[str, Any]:
+        if self.events:
+            event = self.events.pop(0)
+            if event["type"] == "response.done":
+                self.response_done_seen = True
+            return event
+        await asyncio.Future()
+        raise AssertionError("unreachable")
+
+    async def send_tool_output(self, call_id: str, result: dict[str, Any]) -> None:
+        return None
+
+    async def configure(self, machine: Any) -> None:
+        return None
+
+    async def create_response(self, instructions: str | None = None) -> None:
+        self.response_create_after_done.append(self.response_done_seen)
+        self.followup_created.set()
+
+
+class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tool_followup_waits_for_response_done(self) -> None:
+        session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
+        frontend = FakeFrontend()
+        realtime = FakeRealtime()
+
+        task = asyncio.create_task(
+            session._receive_realtime(frontend, realtime)  # type: ignore[arg-type]
+        )
+        await asyncio.wait_for(realtime.followup_created.wait(), timeout=1)
+
+        self.assertEqual(realtime.response_create_after_done, [True])
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+    async def test_committed_audio_response_waits_for_active_response(self) -> None:
+        session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
+        frontend = FakeFrontend()
+        realtime = FakeRealtime()
+        realtime.events = [
+            {"type": "response.created"},
+            {"type": "input_audio_buffer.committed"},
+            {"type": "input_audio_buffer.committed"},
+            {"type": "response.done"},
+        ]
+
+        task = asyncio.create_task(
+            session._receive_realtime(frontend, realtime)  # type: ignore[arg-type]
+        )
+        await asyncio.wait_for(realtime.followup_created.wait(), timeout=1)
+
+        self.assertEqual(realtime.response_create_after_done, [True])
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+    async def test_committed_audio_starts_response_when_idle(self) -> None:
+        session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
+        frontend = FakeFrontend()
+        realtime = FakeRealtime()
+        realtime.events = [{"type": "input_audio_buffer.committed"}]
+
+        task = asyncio.create_task(
+            session._receive_realtime(frontend, realtime)  # type: ignore[arg-type]
+        )
+        await asyncio.wait_for(realtime.followup_created.wait(), timeout=1)
+
+        self.assertEqual(realtime.response_create_after_done, [False])
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+
+if __name__ == "__main__":
+    unittest.main()
