@@ -16,6 +16,14 @@ class FakeSocket:
         self.messages.append(message)
 
 
+class ReceivingSocket:
+    def __init__(self, message: bytes | str) -> None:
+        self.message = message
+
+    async def recv(self) -> bytes | str:
+        return self.message
+
+
 class RealtimeClientTests(unittest.IsolatedAsyncioTestCase):
     async def test_configures_audio_vad_and_function_tools(self) -> None:
         client = LiteLLMRealtimeClient(Settings())
@@ -39,3 +47,7 @@ class RealtimeClientTests(unittest.IsolatedAsyncioTestCase):
             {"type": "input_audio_buffer.append", "audio": "AAE="},
         )
 
+    async def test_binary_json_event_is_decoded(self) -> None:
+        client = LiteLLMRealtimeClient(Settings())
+        client._socket = ReceivingSocket(b'{"type":"response.done"}')  # type: ignore[assignment]
+        self.assertEqual(await client.receive_event(), {"type": "response.done"})

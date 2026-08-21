@@ -29,8 +29,8 @@ async def voice_websocket(websocket: WebSocket) -> None:
     await websocket.accept()
     try:
         await container.create_voice_session().run(websocket)
-    except Exception as exc:
-        logger.error("Voice session failed: %s", type(exc).__name__)
+    except Exception:
+        logger.exception("Voice session failed")
         try:
             await websocket.send_json(
                 {"type": "error", "message": "La sesión de voz ha fallado"}
@@ -43,4 +43,3 @@ async def voice_websocket(websocket: WebSocket) -> None:
             await websocket.close()
         except RuntimeError:
             pass
-

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 from types import TracebackType
 from typing import Any, Self
 from urllib.parse import quote
@@ -12,6 +13,9 @@ from websockets.asyncio.client import ClientConnection, connect
 from app.agent.prompts import instructions_for, tools_for
 from app.agent.state_machine import ConversationStateMachine
 from app.core.config import Settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class LiteLLMRealtimeClient:
@@ -108,8 +112,14 @@ class LiteLLMRealtimeClient:
         if self._socket is None:
             raise RuntimeError("La conexión Realtime no está abierta")
         raw = await self._socket.recv()
+        if isinstance(raw, bytes):
+            try:
+                raw = raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                logger.error("LiteLLM envió un frame binario no UTF-8 (%d bytes)", len(raw))
+                raise RuntimeError("LiteLLM ha enviado un evento binario no válido") from exc
         if not isinstance(raw, str):
-            raise RuntimeError("LiteLLM ha enviado un evento binario inesperado")
+            raise RuntimeError("LiteLLM ha enviado un evento no válido")
         event = json.loads(raw)
         if not isinstance(event, dict):
             raise RuntimeError("LiteLLM ha enviado un evento no válido")
