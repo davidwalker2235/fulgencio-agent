@@ -59,18 +59,16 @@ class LiteLLMRealtimeClient:
                     "voice": self._settings.realtime_voice,
                     "input_audio_format": "pcm16",
                     "output_audio_format": "pcm16",
-                    "input_audio_transcription": {
-                        "model": self._settings.transcription_model
-                    },
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.5,
                         "prefix_padding_ms": 300,
                         "silence_duration_ms": 500,
-                        # LiteLLM sends response.create after the input
-                        # transcription completes. Letting server VAD create
-                        # one as well causes two concurrent responses.
-                        "create_response": False,
+                        # Server VAD is the sole owner of user-turn responses.
+                        # LiteLLM 1.86.0 injects response.create when input
+                        # transcription completes, so transcription is omitted
+                        # to avoid a second response for the same audio turn.
+                        "create_response": True,
                         "interrupt_response": True,
                     },
                     "tools": tools_for(machine.state),

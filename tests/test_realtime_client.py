@@ -35,7 +35,8 @@ class RealtimeClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session["input_audio_format"], "pcm16")
         self.assertEqual(session["output_audio_format"], "pcm16")
         self.assertEqual(session["turn_detection"]["type"], "server_vad")
-        self.assertFalse(session["turn_detection"]["create_response"])
+        self.assertTrue(session["turn_detection"]["create_response"])
+        self.assertNotIn("input_audio_transcription", session)
         self.assertEqual(session["tools"][0]["name"], "choose_experience")
 
     async def test_audio_is_base64_encoded(self) -> None:
