@@ -88,7 +88,7 @@ class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError):
             await task
 
-    async def test_committed_audio_response_waits_for_active_response(self) -> None:
+    async def test_committed_audio_does_not_create_manual_response(self) -> None:
         session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
         frontend = FakeFrontend()
         realtime = FakeRealtime()
@@ -102,25 +102,34 @@ class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
         task = asyncio.create_task(
             session._receive_realtime(frontend, realtime)  # type: ignore[arg-type]
         )
-        await asyncio.wait_for(realtime.followup_created.wait(), timeout=1)
+        await asyncio.sleep(0)
 
-        self.assertEqual(realtime.response_create_after_done, [True])
+        self.assertEqual(realtime.response_create_after_done, [])
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
 
-    async def test_committed_audio_starts_response_when_idle(self) -> None:
+    async def test_response_done_still_starts_pending_tool_followup(self) -> None:
         session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
         frontend = FakeFrontend()
         realtime = FakeRealtime()
-        realtime.events = [{"type": "input_audio_buffer.committed"}]
+        realtime.events = [
+            {"type": "response.created"},
+            {
+                "type": "response.function_call_arguments.done",
+                "call_id": "call-1",
+                "name": "choose_experience",
+                "arguments": '{"experience":"caricature"}',
+            },
+            {"type": "response.done"},
+        ]
 
         task = asyncio.create_task(
             session._receive_realtime(frontend, realtime)  # type: ignore[arg-type]
         )
         await asyncio.wait_for(realtime.followup_created.wait(), timeout=1)
 
-        self.assertEqual(realtime.response_create_after_done, [False])
+        self.assertEqual(realtime.response_create_after_done, [True])
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task

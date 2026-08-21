@@ -101,13 +101,29 @@ class VoiceSession:
             event_type = event.get("type")
             if event_type == "response.created":
                 self._response_idle.clear()
+                response = event.get("response") or {}
+                logger.info(
+                    "realtime_event type=response.created response_id=%s status=%s",
+                    response.get("id"),
+                    response.get("status"),
+                )
             elif event_type == "response.done":
+                response = event.get("response") or {}
+                logger.info(
+                    "realtime_event type=response.done response_id=%s status=%s",
+                    response.get("id"),
+                    response.get("status"),
+                )
                 await self._complete_response(realtime)
+            elif event_type == "error":
+                error = event.get("error") or {}
+                logger.error(
+                    "realtime_event type=error code=%s message=%s",
+                    error.get("code") if isinstance(error, dict) else None,
+                    error.get("message") if isinstance(error, dict) else str(error),
+                )
             for frontend_event in to_frontend_events(event):
                 await self._send_frontend(frontend, frontend_event)
-
-            if event_type == "input_audio_buffer.committed":
-                await self._request_response(realtime)
 
             function_call = parse_function_call(event)
             if function_call is None or function_call.call_id in self._handled_function_calls:

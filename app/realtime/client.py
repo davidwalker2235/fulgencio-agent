@@ -67,7 +67,7 @@ class LiteLLMRealtimeClient:
                         "threshold": 0.5,
                         "prefix_padding_ms": 300,
                         "silence_duration_ms": 500,
-                        "create_response": False,
+                        "create_response": True,
                         "interrupt_response": True,
                     },
                     "tools": tools_for(machine.state),
@@ -97,6 +97,7 @@ class LiteLLMRealtimeClient:
         )
 
     async def create_response(self, instructions: str | None = None) -> None:
+        logger.info("realtime_command type=response.create has_instructions=%s", bool(instructions))
         event: dict[str, Any] = {"type": "response.create"}
         if instructions:
             event["response"] = {
