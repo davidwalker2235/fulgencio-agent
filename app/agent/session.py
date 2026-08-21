@@ -122,6 +122,13 @@ class VoiceSession:
                     error.get("code") if isinstance(error, dict) else None,
                     error.get("message") if isinstance(error, dict) else str(error),
                 )
+            elif event_type in {
+                "input_audio_buffer.speech_started",
+                "input_audio_buffer.speech_stopped",
+                "input_audio_buffer.committed",
+                "response.cancelled",
+            }:
+                logger.info("realtime_event type=%s", event_type)
             for frontend_event in to_frontend_events(event):
                 await self._send_frontend(frontend, frontend_event)
 
