@@ -67,7 +67,10 @@ class LiteLLMRealtimeClient:
                         "threshold": 0.5,
                         "prefix_padding_ms": 300,
                         "silence_duration_ms": 500,
-                        "create_response": True,
+                        # LiteLLM sends response.create after the input
+                        # transcription completes. Letting server VAD create
+                        # one as well causes two concurrent responses.
+                        "create_response": False,
                         "interrupt_response": True,
                     },
                     "tools": tools_for(machine.state),
