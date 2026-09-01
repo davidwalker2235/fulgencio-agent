@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Protocol
 
 from app.domain.models import DrawingOutcome, UserRecord
@@ -16,5 +17,9 @@ class RobotGateway(Protocol):
 
     async def publish_gift(self) -> None: ...
 
-    async def wait_for_drawing_completion(self) -> DrawingOutcome: ...
-
+    async def wait_for_drawing_completion(
+        self,
+        *,
+        on_start_timeout: Callable[[], Awaitable[None]] | None = None,
+        on_late_start: Callable[[], Awaitable[None]] | None = None,
+    ) -> DrawingOutcome: ...

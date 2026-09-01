@@ -33,6 +33,11 @@ class ProtocolTests(unittest.TestCase):
             with self.subTest(source=source["type"]):
                 self.assertEqual(to_frontend_events(source), [expected])
 
+    def test_agent_end_can_be_suppressed_for_persistent_sessions(self) -> None:
+        self.assertEqual(
+            to_frontend_events({"type": "response.done"}, include_agent_end=False), []
+        )
+
     def test_parses_function_call_formats(self) -> None:
         direct = parse_function_call(
             {
@@ -55,4 +60,3 @@ class ProtocolTests(unittest.TestCase):
         )
         self.assertEqual(direct.arguments, {"number": 42})  # type: ignore[union-attr]
         self.assertEqual(item.arguments, {"confirmed": True})  # type: ignore[union-attr]
-

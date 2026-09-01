@@ -41,7 +41,9 @@ def _build_call(call_id: Any, name: Any, raw_arguments: Any) -> FunctionCall | N
     return FunctionCall(call_id, name, arguments)
 
 
-def to_frontend_events(event: dict[str, Any]) -> list[dict[str, Any]]:
+def to_frontend_events(
+    event: dict[str, Any], *, include_agent_end: bool = True
+) -> list[dict[str, Any]]:
     """Convert Realtime events to the established Erni frontend contract."""
     event_type = str(event.get("type", ""))
     if event_type == "conversation.item.input_audio_transcription.delta":
@@ -58,10 +60,9 @@ def to_frontend_events(event: dict[str, Any]) -> list[dict[str, Any]]:
     if event_type in {"response.audio.delta", "response.output_audio.delta"}:
         return [{"type": "tts_chunk", "audio": event.get("delta", "")}]
     if event_type == "response.done":
-        return [{"type": "agent_end"}]
+        return [{"type": "agent_end"}] if include_agent_end else []
     if event_type == "error":
         error = event.get("error") or {}
         message = error.get("message") if isinstance(error, dict) else str(error)
         return [{"type": "error", "message": message or "Error del servicio Realtime"}]
     return []
-

@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     ws_basic_password: str = ""
     ws_basic_auth_required: bool = True
     max_audio_chunk_bytes: int = Field(default=65_536, ge=1_024, le=1_048_576)
-    drawing_start_timeout_seconds: float = Field(default=15.0, ge=1.0, le=120.0)
+    drawing_start_timeout_seconds: float = Field(default=60.0, ge=1.0, le=120.0)
     drawing_complete_timeout_seconds: float = Field(default=300.0, ge=30.0, le=1_800.0)
 
     @model_validator(mode="after")

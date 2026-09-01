@@ -62,6 +62,14 @@ class ConversationStateMachine:
         self._require(ConversationState.DRAWING)
         self.state = ConversationState.FINISHED
 
+    def reset_for_next_experience(self) -> None:
+        """Reabre la sesión para otra acción sin reutilizar datos de la anterior."""
+        self._require(ConversationState.FINISHED)
+        self.state = ConversationState.OFFERING_OPTIONS
+        self.pending_number = None
+        self.selected_experience = None
+        self.action_published = False
+
     def _mark_action_published(self) -> None:
         if self.action_published:
             raise InvalidTransitionError("Ya se ha publicado una acción en esta sesión")

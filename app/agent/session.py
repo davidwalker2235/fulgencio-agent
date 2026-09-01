@@ -41,6 +41,7 @@ class VoiceSession:
         self._response_pending = False
         self._pending_response_instructions: str | None = None
         self._drawing_monitor: asyncio.Task[None] | None = None
+        self._drawing_start_observation_active = False
         self._response_idle = asyncio.Event()
         self._response_idle.set()
 
@@ -131,7 +132,7 @@ class VoiceSession:
                 "response.cancelled",
             }:
                 logger.info("realtime_event type=%s", event_type)
-            for frontend_event in to_frontend_events(event):
+            for frontend_event in to_frontend_events(event, include_agent_end=False):
                 await self._send_frontend(frontend, frontend_event)
 
             function_call = parse_function_call(event)
@@ -155,6 +156,8 @@ class VoiceSession:
                 {"type": "tool_result", "name": function_call.name, "result": result_payload},
             )
             await realtime.send_tool_output(function_call.call_id, result_payload)
+            if result.status == "ok" and self._machine.state is ConversationState.FINISHED:
+                self._machine.reset_for_next_experience()
             await realtime.configure(self._machine, self._conversation_instructions)
             await self._request_response(realtime)
 
@@ -171,14 +174,20 @@ class VoiceSession:
         self, frontend: WebSocket, realtime: LiteLLMRealtimeClient
     ) -> None:
         try:
-            outcome = await self._robot.wait_for_drawing_completion()
+            outcome = await self._robot.wait_for_drawing_completion(
+                on_start_timeout=lambda: self._handle_drawing_start_timeout(realtime),
+                on_late_start=lambda: self._handle_late_drawing_start(realtime),
+            )
+            self._drawing_start_observation_active = False
             self._machine.finish_drawing()
+            self._machine.reset_for_next_experience()
             await realtime.configure(self._machine, self._conversation_instructions)
             await self._interrupt_active_response(realtime)
             if outcome.completed:
                 await self._request_response(
                     realtime,
-                    "Anuncia que la caricatura está lista y despídete brevemente."
+                    "Anuncia que la caricatura está lista y vuelve a ofrecer las opciones "
+                    "disponibles por si el usuario quiere otra experiencia."
                 )
             else:
                 await self._send_frontend(
@@ -187,7 +196,7 @@ class VoiceSession:
                 await self._request_response(
                     realtime,
                     "Informa brevemente de que el robot no pudo terminar la caricatura. "
-                    "No digas que está lista y despídete."
+                    "No digas que está lista y vuelve a ofrecer las opciones disponibles."
                 )
         except asyncio.CancelledError:
             raise
@@ -195,6 +204,7 @@ class VoiceSession:
             logger.error("Drawing monitor failed: %s", type(exc).__name__)
             if self._machine.state is ConversationState.DRAWING:
                 self._machine.finish_drawing()
+                self._machine.reset_for_next_experience()
             await self._send_frontend(
                 frontend,
                 {"type": "error", "message": "No se pudo comprobar el estado del dibujo"},
@@ -204,8 +214,35 @@ class VoiceSession:
             await self._request_response(
                 realtime,
                 "Informa de que no puedes confirmar que la caricatura haya terminado. "
-                "No afirmes que está lista y despídete."
+                "No afirmes que está lista y vuelve a ofrecer las opciones disponibles."
             )
+        finally:
+            self._drawing_monitor = None
+
+    async def _handle_drawing_start_timeout(
+        self, realtime: LiteLLMRealtimeClient
+    ) -> None:
+        if self._machine.state is not ConversationState.DRAWING:
+            return
+        self._drawing_start_observation_active = True
+        await self._request_response(
+            realtime,
+            "Informa con calma de que parece que el robot todavía no ha empezado a dibujar "
+            "la caricatura y que vas a comprobar qué ocurre. No cierres la conversación ni "
+            "digas que la caricatura ha terminado.",
+        )
+
+    async def _handle_late_drawing_start(
+        self, realtime: LiteLLMRealtimeClient
+    ) -> None:
+        if not self._drawing_start_observation_active:
+            return
+        self._drawing_start_observation_active = False
+        await self._request_response(
+            realtime,
+            "Informa brevemente y con entusiasmo de que el robot ya está dibujando la "
+            "caricatura. Continúa la conversación mientras trabaja.",
+        )
 
     async def _request_response(
         self,

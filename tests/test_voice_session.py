@@ -3,10 +3,11 @@ from __future__ import annotations
 import asyncio
 import unittest
 from typing import Any
+from unittest.mock import AsyncMock
 
 from app.agent.session import VoiceSession
 from app.core.config import Settings
-from app.domain.models import DrawingOutcome
+from app.domain.models import DrawingOutcome, Experience
 
 
 class FakeUsers:
@@ -24,7 +25,9 @@ class FakeRobot:
     async def publish_caricature(self, user: Any) -> None:
         return None
 
-    async def wait_for_drawing_completion(self) -> DrawingOutcome:
+    async def wait_for_drawing_completion(
+        self, *, on_start_timeout=None, on_late_start=None
+    ) -> DrawingOutcome:
         return DrawingOutcome("idle", True, "done")
 
 
@@ -85,6 +88,25 @@ class FakeRealtime:
 
 
 class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_late_start_announcements_are_only_sent_in_observation_mode(self) -> None:
+        session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
+        session._request_response = AsyncMock()  # type: ignore[method-assign]
+        realtime = object()
+
+        await session._handle_late_drawing_start(realtime)  # type: ignore[arg-type]
+        session._machine.choose_experience(Experience.CARICATURE)
+        session._machine.capture_number(1)
+        session._machine.start_drawing()
+        await session._handle_drawing_start_timeout(realtime)  # type: ignore[arg-type]
+        await session._handle_late_drawing_start(realtime)  # type: ignore[arg-type]
+        await session._handle_late_drawing_start(realtime)  # type: ignore[arg-type]
+
+        self.assertEqual(session._request_response.await_count, 2)  # type: ignore[attr-defined]
+        warning = session._request_response.await_args_list[0].args[1]  # type: ignore[attr-defined]
+        late = session._request_response.await_args_list[1].args[1]  # type: ignore[attr-defined]
+        self.assertIn("todavía no ha empezado", warning)
+        self.assertIn("ya está dibujando", late)
+
     async def test_custom_conversation_is_configured_before_initial_greeting(self) -> None:
         realtime = FakeRealtime()
         realtime.events = []

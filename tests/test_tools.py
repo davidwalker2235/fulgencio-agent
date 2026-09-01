@@ -32,7 +32,9 @@ class FakeRobot:
     async def publish_caricature(self, user: UserRecord) -> None:
         self.caricatures.append(user)
 
-    async def wait_for_drawing_completion(self) -> DrawingOutcome:
+    async def wait_for_drawing_completion(
+        self, *, on_start_timeout=None, on_late_start=None
+    ) -> DrawingOutcome:
         return DrawingOutcome("idle", True, "done")
 
 

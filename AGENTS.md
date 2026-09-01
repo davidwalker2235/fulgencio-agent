@@ -49,3 +49,13 @@ python -m unittest discover -s tests -v
 
 Comprueba que un perfil personalizado nunca sustituye las reglas inmutables ni altera la lista de
 herramientas del estado.
+
+## Sesión persistente
+
+Una sesión puede ejecutar varias experiencias consecutivas. Tras completar un regalo o cuando el
+robot vuelve a `idle` después de dibujar, la máquina vuelve a `offering_options`, limpia el número
+pendiente y permite elegir otra acción. Cada nueva caricatura debe pasar de nuevo por captura y
+confirmación del número.
+
+El adaptador de Fulgencio no emite `agent_end` para `response.done`; ese evento no debe interpretarse
+como el fin de la conversación. El WebSocket solo termina cuando el cliente lo cierra.

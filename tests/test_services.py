@@ -57,6 +57,52 @@ class FirebaseGatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(outcome.completed)
         self.assertEqual(outcome.status, "idle")
 
+    async def test_observes_late_start_after_warning(self) -> None:
+        gateway = self.gateway()
+        gateway._drawing_start_timeout = 0
+        statuses = iter(["idle", "drawing", "idle"])
+        events: list[str] = []
+
+        async def status() -> str:
+            return next(statuses)
+
+        async def on_start_timeout() -> None:
+            events.append("warning")
+
+        async def on_late_start() -> None:
+            events.append("started")
+
+        gateway.get_status = status
+        outcome = await gateway.wait_for_drawing_completion(
+            on_start_timeout=on_start_timeout,
+            on_late_start=on_late_start,
+        )
+
+        self.assertEqual(events, ["warning", "started"])
+        self.assertTrue(outcome.completed)
+        self.assertEqual(outcome.status, "idle")
+
+    async def test_early_start_does_not_enter_observation_mode(self) -> None:
+        gateway = self.gateway()
+        gateway._drawing_start_timeout = 1
+        statuses = iter(["drawing", "idle"])
+        events: list[str] = []
+
+        async def status() -> str:
+            return next(statuses)
+
+        async def callback() -> None:
+            events.append("called")
+
+        gateway.get_status = status
+        outcome = await gateway.wait_for_drawing_completion(
+            on_start_timeout=callback,
+            on_late_start=callback,
+        )
+
+        self.assertEqual(events, [])
+        self.assertTrue(outcome.completed)
+
     async def test_error_and_offline_are_failures(self) -> None:
         for terminal_status in ("error", "offline"):
             gateway = self.gateway()
