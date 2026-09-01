@@ -49,13 +49,18 @@ class LiteLLMRealtimeClient:
         if self._socket is not None:
             await self._socket.close()
 
-    async def configure(self, machine: ConversationStateMachine) -> None:
+    async def configure(
+        self,
+        machine: ConversationStateMachine,
+        conversation_instructions: str | None = None,
+    ) -> None:
+        available_tools = tools_for(machine.state)
         await self.send_event(
             {
                 "type": "session.update",
                 "session": {
                     "modalities": ["text", "audio"],
-                    "instructions": instructions_for(machine),
+                    "instructions": instructions_for(machine, conversation_instructions),
                     "voice": self._settings.realtime_voice,
                     "input_audio_format": "pcm16",
                     "output_audio_format": "pcm16",
@@ -71,8 +76,8 @@ class LiteLLMRealtimeClient:
                         "create_response": True,
                         "interrupt_response": True,
                     },
-                    "tools": tools_for(machine.state),
-                    "tool_choice": "auto" if tools_for(machine.state) else "none",
+                    "tools": available_tools,
+                    "tool_choice": "auto" if available_tools else "none",
                 },
             }
         )

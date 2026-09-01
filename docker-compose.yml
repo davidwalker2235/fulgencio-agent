@@ -9,6 +9,10 @@ services:
       LITELLM_PROXY_HTTP_URL: http://litellm:4000
       LITELLM_PROXY_WS_URL: ws://litellm:4000
       LITELLM_PROXY_API_KEY: ${LITELLM_MASTER_KEY}
+      # Solo desarrollo local: el navegador no puede enviar Authorization
+      # personalizado al abrir un WebSocket. Producción mantiene el valor
+      # predeterminado (true) porque no usa este override.
+      WS_BASIC_AUTH_REQUIRED: "false"
     depends_on:
       litellm:
         condition: service_healthy

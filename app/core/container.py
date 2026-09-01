@@ -42,10 +42,17 @@ class AppContainer:
         if self.robot is not None:
             await self.robot.close()
 
-    def create_voice_session(self) -> VoiceSession:
+    def create_voice_session(
+        self, conversation_instructions: str | None = None
+    ) -> VoiceSession:
         if self.users is None or self.robot is None:
             raise RuntimeError("Las dependencias no están inicializadas")
-        return VoiceSession(self.settings, self.users, self.robot)
+        return VoiceSession(
+            self.settings,
+            self.users,
+            self.robot,
+            conversation_instructions=conversation_instructions,
+        )
 
     async def readiness_errors(self) -> list[str]:
         if self.users is None or self.robot is None:

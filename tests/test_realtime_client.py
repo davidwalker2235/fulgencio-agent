@@ -29,7 +29,9 @@ class RealtimeClientTests(unittest.IsolatedAsyncioTestCase):
         client = LiteLLMRealtimeClient(Settings())
         socket = FakeSocket()
         client._socket = socket  # type: ignore[assignment]
-        await client.configure(ConversationStateMachine())
+        await client.configure(
+            ConversationStateMachine(), "Habla solo sobre la exposición actual."
+        )
         payload = json.loads(socket.messages[0])
         session = payload["session"]
         self.assertEqual(session["input_audio_format"], "pcm16")
@@ -38,6 +40,8 @@ class RealtimeClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(session["turn_detection"]["create_response"])
         self.assertNotIn("input_audio_transcription", session)
         self.assertEqual(session["tools"][0]["name"], "choose_experience")
+        self.assertIn("Habla solo sobre la exposición actual.", session["instructions"])
+        self.assertIn("REGLAS OPERATIVAS INMUTABLES", session["instructions"])
 
     async def test_audio_is_base64_encoded(self) -> None:
         client = LiteLLMRealtimeClient(Settings())

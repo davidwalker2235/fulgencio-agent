@@ -26,11 +26,13 @@ class VoiceSession:
         users: UserRepository,
         robot: RobotGateway,
         realtime_factory: Callable[[Settings], LiteLLMRealtimeClient] = LiteLLMRealtimeClient,
+        conversation_instructions: str | None = None,
     ) -> None:
         self._settings = settings
         self._users = users
         self._robot = robot
         self._realtime_factory = realtime_factory
+        self._conversation_instructions = conversation_instructions
         self._machine = ConversationStateMachine()
         self._tools = ToolExecutor(self._machine, users, robot)
         self._front_send_lock = asyncio.Lock()
@@ -44,13 +46,13 @@ class VoiceSession:
 
     async def run(self, frontend: WebSocket) -> None:
         async with self._realtime_factory(self._settings) as realtime:
-            await realtime.configure(self._machine)
+            await realtime.configure(self._machine, self._conversation_instructions)
             await self._send_frontend(
                 frontend, {"type": "session.created", "message": "Sesión iniciada"}
             )
             await self._request_response(
                 realtime,
-                "Saluda brevemente como Fulgencio y ofrece una caricatura o un regalo."
+                "Inicia la conversación siguiendo las instrucciones conversacionales vigentes."
             )
             frontend_task = asyncio.create_task(self._receive_frontend(frontend, realtime))
             realtime_task = asyncio.create_task(self._receive_realtime(frontend, realtime))
@@ -153,7 +155,7 @@ class VoiceSession:
                 {"type": "tool_result", "name": function_call.name, "result": result_payload},
             )
             await realtime.send_tool_output(function_call.call_id, result_payload)
-            await realtime.configure(self._machine)
+            await realtime.configure(self._machine, self._conversation_instructions)
             await self._request_response(realtime)
 
             if (
@@ -171,7 +173,7 @@ class VoiceSession:
         try:
             outcome = await self._robot.wait_for_drawing_completion()
             self._machine.finish_drawing()
-            await realtime.configure(self._machine)
+            await realtime.configure(self._machine, self._conversation_instructions)
             await self._interrupt_active_response(realtime)
             if outcome.completed:
                 await self._request_response(
@@ -197,7 +199,7 @@ class VoiceSession:
                 frontend,
                 {"type": "error", "message": "No se pudo comprobar el estado del dibujo"},
             )
-            await realtime.configure(self._machine)
+            await realtime.configure(self._machine, self._conversation_instructions)
             await self._interrupt_active_response(realtime)
             await self._request_response(
                 realtime,

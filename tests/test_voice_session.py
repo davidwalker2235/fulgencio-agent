@@ -35,6 +35,9 @@ class FakeFrontend:
     async def send_json(self, payload: dict[str, Any]) -> None:
         self.messages.append(payload)
 
+    async def receive(self) -> dict[str, str]:
+        return {"type": "websocket.disconnect"}
+
 
 class FakeRealtime:
     def __init__(self) -> None:
@@ -51,6 +54,13 @@ class FakeRealtime:
         self.response_done_seen = False
         self.response_create_after_done: list[bool] = []
         self.followup_created = asyncio.Event()
+        self.configured_conversations: list[str | None] = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback) -> None:
+        return None
 
     async def receive_event(self) -> dict[str, Any]:
         if self.events:
@@ -64,8 +74,10 @@ class FakeRealtime:
     async def send_tool_output(self, call_id: str, result: dict[str, Any]) -> None:
         return None
 
-    async def configure(self, machine: Any) -> None:
-        return None
+    async def configure(
+        self, machine: Any, conversation_instructions: str | None = None
+    ) -> None:
+        self.configured_conversations.append(conversation_instructions)
 
     async def create_response(self, instructions: str | None = None) -> None:
         self.response_create_after_done.append(self.response_done_seen)
@@ -73,8 +85,33 @@ class FakeRealtime:
 
 
 class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_custom_conversation_is_configured_before_initial_greeting(self) -> None:
+        realtime = FakeRealtime()
+        realtime.events = []
+        session = VoiceSession(
+            Settings(),
+            FakeUsers(),
+            FakeRobot(),
+            realtime_factory=lambda settings: realtime,
+            conversation_instructions="Conversación personalizada",
+        )  # type: ignore[arg-type]
+        frontend = FakeFrontend()
+
+        await session.run(frontend)  # type: ignore[arg-type]
+
+        self.assertEqual(
+            realtime.configured_conversations, ["Conversación personalizada"]
+        )
+        self.assertEqual(realtime.response_create_after_done, [False])
+        self.assertEqual(frontend.messages[0]["type"], "session.created")
+
     async def test_tool_followup_waits_for_response_done(self) -> None:
-        session = VoiceSession(Settings(), FakeUsers(), FakeRobot())  # type: ignore[arg-type]
+        session = VoiceSession(
+            Settings(),
+            FakeUsers(),
+            FakeRobot(),
+            conversation_instructions="Conversación personalizada",
+        )  # type: ignore[arg-type]
         frontend = FakeFrontend()
         realtime = FakeRealtime()
 
@@ -84,6 +121,9 @@ class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(realtime.followup_created.wait(), timeout=1)
 
         self.assertEqual(realtime.response_create_after_done, [True])
+        self.assertEqual(
+            realtime.configured_conversations, ["Conversación personalizada"]
+        )
         task.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await task
