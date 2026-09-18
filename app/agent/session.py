@@ -53,7 +53,7 @@ class VoiceSession:
             )
             await self._request_response(
                 realtime,
-                "Inicia la conversación siguiendo las instrucciones conversacionales vigentes."
+                "Start the conversation by following the active conversational instructions."
             )
             frontend_task = asyncio.create_task(self._receive_frontend(frontend, realtime))
             realtime_task = asyncio.create_task(self._receive_realtime(frontend, realtime))

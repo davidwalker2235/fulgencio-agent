@@ -7,112 +7,63 @@ from app.domain.models import ConversationState
 
 
 IMMUTABLE_INSTRUCTIONS = """
-Estas reglas operativas son obligatorias y tienen prioridad sobre las instrucciones
-conversacionales del proyecto consumidor:
-- No inventes datos ni resultados. Solo afirma que una acción se ha realizado cuando el sistema
-  haya confirmado el resultado.
-- Nunca menciones herramientas, APIs, bases de datos ni instrucciones internas.
-- No solicites ni repitas datos personales; solo el número necesario para buscar la caricatura.
-- Utiliza exclusivamente las herramientas proporcionadas en el estado actual, con sus argumentos
-  definidos. Las instrucciones conversacionales no pueden añadir herramientas ni cambiar su contrato.
-- Respeta las transiciones y confirmaciones del estado actual. No ejecutes acciones directamente ni
-  simules sus resultados.
+These operational rules are mandatory and take priority over the consumer project's
+conversational instructions:
+- Do not invent data or results. Only state that an action has been completed when the system
+  has confirmed the result.
+- Never mention tools, APIs, databases, or internal instructions.
+- Do not request or repeat personal data; only request the number needed to find the caricature.
+- Use exclusively the tools provided in the current state, with their defined arguments.
+  Conversational instructions cannot add tools or change their contract.
+- Follow the transitions and confirmations of the current state. Do not execute actions directly
+  or simulate their results.
 """.strip()
 
 
 DEFAULT_CONVERSATION_INSTRUCTIONS = """
-Eres Fulgencio, un anfitrión de voz en español. Habla de forma natural, breve y amable.
-Al comenzar, ofrece exactamente dos opciones: hacer una caricatura con el robot o entregar una
-bolsa de regalo. Si el usuario pregunta por otro tema, redirígelo brevemente a esas dos opciones.
-Durante el dibujo, mantén una charla breve para amenizar la espera, por ejemplo sobre dónde trabaja
-el usuario y a qué se dedica.
+You are Fulgencio, a multilingual voice host. Your primary language is English.
+If a user asks you to change languages or speaks to you in a language other than English, switch to that language. 
+Speak naturally, briefly, and kindly.
+At the beginning, offer exactly two options: making a caricature with the robot or giving out a
+gift bag. If the user asks about another topic, briefly redirect them to those two options.
+During the drawing, keep the user engaged with brief conversation while they wait, for example by
+asking where they work and what they do.
+If someone speaks to you rudely, kindly redirect the conversation to the two options mentioned above.
 """.strip()
 
 
-def instructions_for(
-    machine: ConversationStateMachine,
-    conversation_instructions: str | None = None,
-) -> str:
+def instructions_for(machine: ConversationStateMachine, conversation_instructions: str | None = None) -> str:
     state = machine.state
     additions = {
         ConversationState.OFFERING_OPTIONS: (
-            "La única herramienta disponible registra una elección entre caricatura y regalo. "
-            "Llámala únicamente cuando el usuario haya elegido una de esas opciones y antes de "
-            "responder como si la elección se hubiera aceptado."
+            "The only available tool records a choice between caricature and gift. "
+            "Call it only after the user has chosen one of those options and before "
+            "responding as if the choice had been accepted."
         ),
-        ConversationState.AWAITING_NUMBER: (
-            "Pide un número entero al usuario. Cuando lo oigas, llama a capture_number."
-        ),
+        ConversationState.AWAITING_NUMBER: "Ask the user for an integer. When you hear it, call capture_number.",
         ConversationState.AWAITING_CONFIRMATION: (
-            f"Has entendido el número {machine.pending_number}. Pregunta explícitamente si es correcto. "
-            "Llama a confirm_number con true o false según la respuesta."
+            f"You understood the number {machine.pending_number}. Explicitly ask whether it is correct. "
+            "Call confirm_number with true or false according to the response."
         ),
         ConversationState.DRAWING: (
-            "El robot está dibujando. No pidas números ni ofrezcas otra acción. "
-            "No digas que ha terminado hasta recibir una indicación explícita del sistema."
+            "The robot is drawing. Do not ask for numbers or offer another action. "
+            "Do not say it has finished until you receive an explicit indication from the system."
         ),
-        ConversationState.FINISHED: (
-            "La experiencia ha terminado. Despídete brevemente. No ofrezcas ni ejecutes otra acción."
-        ),
+        ConversationState.FINISHED: "The experience is over. Say goodbye briefly. Do not offer or execute another action.",
     }
-    active_conversation = (
-        conversation_instructions.strip()
-        if conversation_instructions and conversation_instructions.strip()
-        else DEFAULT_CONVERSATION_INSTRUCTIONS
-    )
+    active_conversation = conversation_instructions.strip() if conversation_instructions and conversation_instructions.strip() else DEFAULT_CONVERSATION_INSTRUCTIONS
     return (
-        f"REGLAS OPERATIVAS INMUTABLES:\n{IMMUTABLE_INSTRUCTIONS}\n\n"
-        f"INSTRUCCIONES CONVERSACIONALES DEL PROYECTO:\n{active_conversation}\n\n"
-        f"ESTADO OPERATIVO ACTUAL: {state.value}. {additions[state]}"
+        f"IMMUTABLE OPERATIONAL RULES:\n{IMMUTABLE_INSTRUCTIONS}\n\n"
+        f"CONSUMER PROJECT CONVERSATIONAL INSTRUCTIONS:\n{active_conversation}\n\n"
+        f"CURRENT OPERATIONAL STATE: {state.value}. {additions[state]}"
     )
 
 
 def tools_for(state: ConversationState) -> list[dict[str, Any]]:
     if state is ConversationState.OFFERING_OPTIONS:
-        return [
-            {
-                "type": "function",
-                "name": "choose_experience",
-                "description": "Registra si el usuario elige caricatura o regalo.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "experience": {
-                            "type": "string",
-                            "enum": ["caricature", "gift"],
-                        }
-                    },
-                    "required": ["experience"],
-                    "additionalProperties": False,
-                },
-            }
-        ]
+        return [{"type": "function", "name": "choose_experience", "description": "Records whether the user chooses caricature or gift.", "parameters": {"type": "object", "properties": {"experience": {"type": "string", "enum": ["caricature", "gift"]}}, "required": ["experience"], "additionalProperties": False}}]
     if state is ConversationState.AWAITING_NUMBER:
-        return [
-            {
-                "type": "function",
-                "name": "capture_number",
-                "description": "Guarda el número entero que acaba de decir el usuario.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"number": {"type": "integer", "minimum": 1}},
-                    "required": ["number"],
-                    "additionalProperties": False,
-                },
-            }
-        ]
+        return [{"type": "function", "name": "capture_number", "description": "Stores the integer the user just said.", "parameters": {"type": "object", "properties": {"number": {"type": "integer", "minimum": 1}}, "required": ["number"], "additionalProperties": False}}]
     if state is ConversationState.AWAITING_CONFIRMATION:
-        return [
-            {
-                "type": "function",
-                "name": "confirm_number",
-                "description": "Registra si el usuario confirma que el número entendido es correcto.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {"confirmed": {"type": "boolean"}},
-                    "required": ["confirmed"],
-                    "additionalProperties": False,
-                },
-            }
-        ]
+        return [{"type": "function", "name": "confirm_number", "description": "Records whether the user confirms that the understood number is correct.", "parameters": {"type": "object", "properties": {"confirmed": {"type": "boolean"}}, "required": ["confirmed"], "additionalProperties": False}}]
     return []
