@@ -41,7 +41,7 @@ class RealtimeClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("input_audio_transcription", session)
         self.assertEqual(session["tools"][0]["name"], "choose_experience")
         self.assertIn("Habla solo sobre la exposición actual.", session["instructions"])
-        self.assertIn("REGLAS OPERATIVAS INMUTABLES", session["instructions"])
+        self.assertIn("IMMUTABLE OPERATIONAL RULES", session["instructions"])
 
     async def test_audio_is_base64_encoded(self) -> None:
         client = LiteLLMRealtimeClient(Settings())

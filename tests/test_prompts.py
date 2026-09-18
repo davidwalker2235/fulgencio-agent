@@ -20,8 +20,8 @@ class PromptCompositionTests(unittest.TestCase):
 
         self.assertIn(DEFAULT_CONVERSATION_INSTRUCTIONS, instructions)
         self.assertIn(IMMUTABLE_INSTRUCTIONS, instructions)
-        self.assertIn("hacer una caricatura", instructions)
-        self.assertIn("bolsa de regalo", instructions)
+        self.assertIn("making a caricature with the robot", instructions)
+        self.assertIn("gift bag", instructions)
 
     def test_custom_conversation_replaces_only_conversation_layer(self) -> None:
         custom = "Eres una guía de museo. Limita la charla a la exposición actual."
@@ -31,7 +31,7 @@ class PromptCompositionTests(unittest.TestCase):
         self.assertIn(custom, instructions)
         self.assertNotIn(DEFAULT_CONVERSATION_INSTRUCTIONS, instructions)
         self.assertIn(IMMUTABLE_INSTRUCTIONS, instructions)
-        self.assertIn("ESTADO OPERATIVO ACTUAL: offering_options", instructions)
+        self.assertIn("CURRENT OPERATIONAL STATE: offering_options", instructions)
         self.assertEqual(tools_for(self.machine.state)[0]["name"], "choose_experience")
 
     def test_blank_custom_conversation_uses_default(self) -> None:
