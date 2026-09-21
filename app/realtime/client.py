@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import audioop
 import base64
 import json
 import logging
@@ -18,19 +19,22 @@ from app.core.config import Settings
 logger = logging.getLogger(__name__)
 
 
-class LiteLLMRealtimeClient:
+class AzureRealtimeClient:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._socket: ClientConnection | None = None
         self._send_lock = asyncio.Lock()
+        self._resample_state: tuple[int, tuple[int, ...]] | None = None
 
     async def __aenter__(self) -> Self:
-        model = quote(self._settings.model_name, safe="")
-        url = f"{self._settings.litellm_proxy_ws_url}/v1/realtime?model={model}"
-        headers = {
-            "Authorization": f"Bearer {self._settings.litellm_proxy_api_key}",
-            "OpenAI-Beta": "realtime=v1",
-        }
+        deployment = quote(self._settings.azure_openai_deployment_name, safe="")
+        endpoint = self._settings.azure_openai_endpoint
+        if endpoint.startswith("https://"):
+            endpoint = "wss://" + endpoint.removeprefix("https://")
+        elif endpoint.startswith("http://"):
+            endpoint = "ws://" + endpoint.removeprefix("http://")
+        url = f"{endpoint}/openai/v1/realtime?model={deployment}"
+        headers = {"api-key": self._settings.azure_openai_api_key}
         self._socket = await connect(
             url,
             additional_headers=headers,
@@ -59,22 +63,25 @@ class LiteLLMRealtimeClient:
             {
                 "type": "session.update",
                 "session": {
-                    "modalities": ["text", "audio"],
+                    "type": "realtime",
                     "instructions": instructions_for(machine, conversation_instructions),
-                    "voice": self._settings.realtime_voice,
-                    "input_audio_format": "pcm16",
-                    "output_audio_format": "pcm16",
-                    "turn_detection": {
-                        "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 500,
-                        # Server VAD is the sole owner of user-turn responses.
-                        # LiteLLM 1.86.0 injects response.create when input
-                        # transcription completes, so transcription is omitted
-                        # to avoid a second response for the same audio turn.
-                        "create_response": True,
-                        "interrupt_response": True,
+                    "output_modalities": ["audio"],
+                    "audio": {
+                        "input": {
+                            "format": {"type": "audio/pcm", "rate": 24_000},
+                            "turn_detection": {
+                                "type": "server_vad",
+                                "threshold": 0.5,
+                                "prefix_padding_ms": 300,
+                                "silence_duration_ms": 500,
+                                "create_response": True,
+                                "interrupt_response": True,
+                            },
+                        },
+                        "output": {
+                            "format": {"type": "audio/pcm", "rate": 24_000},
+                            "voice": self._settings.realtime_voice,
+                        },
                     },
                     "tools": available_tools,
                     "tool_choice": "auto" if available_tools else "none",
@@ -83,6 +90,11 @@ class LiteLLMRealtimeClient:
         )
 
     async def append_audio(self, audio: bytes) -> None:
+        if len(audio) % 2:
+            raise ValueError("PCM16 audio chunks must contain complete 16-bit samples")
+        audio, self._resample_state = audioop.ratecv(
+            audio, 2, 1, 16_000, 24_000, self._resample_state
+        )
         await self.send_event(
             {
                 "type": "input_audio_buffer.append",
@@ -107,7 +119,7 @@ class LiteLLMRealtimeClient:
         event: dict[str, Any] = {"type": "response.create"}
         if instructions:
             event["response"] = {
-                "modalities": ["text", "audio"],
+                "output_modalities": ["audio"],
                 "instructions": instructions,
             }
         await self.send_event(event)
@@ -123,13 +135,13 @@ class LiteLLMRealtimeClient:
             try:
                 raw = raw.decode("utf-8")
             except UnicodeDecodeError as exc:
-                logger.error("LiteLLM envió un frame binario no UTF-8 (%d bytes)", len(raw))
-                raise RuntimeError("LiteLLM ha enviado un evento binario no válido") from exc
+                logger.error("Azure Realtime envió un frame binario no UTF-8 (%d bytes)", len(raw))
+                raise RuntimeError("Azure Realtime ha enviado un evento binario no válido") from exc
         if not isinstance(raw, str):
-            raise RuntimeError("LiteLLM ha enviado un evento no válido")
+            raise RuntimeError("Azure Realtime ha enviado un evento no válido")
         event = json.loads(raw)
         if not isinstance(event, dict):
-            raise RuntimeError("LiteLLM ha enviado un evento no válido")
+            raise RuntimeError("Azure Realtime ha enviado un evento no válido")
         return event
 
     async def send_event(self, event: dict[str, Any]) -> None:

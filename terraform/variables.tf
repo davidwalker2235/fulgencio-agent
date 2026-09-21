@@ -50,14 +50,9 @@ variable "azure_openai_api_key" {
   sensitive = true
 }
 
-variable "azure_openai_api_version" {
+variable "azure_openai_deployment_name" {
   type    = string
-  default = "2024-10-01-preview"
-}
-
-variable "litellm_master_key" {
-  type      = string
-  sensitive = true
+  default = "gpt-realtime-1.5"
 }
 
 variable "firebase_database_url" {

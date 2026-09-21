@@ -19,8 +19,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
-COPY litellm_config.yaml .
-COPY run_litellm_proxy.py .
 
 RUN addgroup --system agent && adduser --system --ingroup agent agent \
     && chown -R agent:agent /app

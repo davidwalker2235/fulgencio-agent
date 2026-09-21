@@ -20,17 +20,11 @@ class Settings(BaseSettings):
     app_name: str = "Fulgencio Voice Agent"
     log_level: str = "INFO"
 
-    model_name: str = "gpt-realtime-1.5"
     realtime_voice: str = "shimmer"
-    transcription_model: str = "whisper-1"
-    litellm_proxy_http_url: str = "http://localhost:4000"
-    litellm_proxy_ws_url: str = "ws://localhost:4000"
-    litellm_proxy_api_key: str = ""
-    litellm_master_key: str = ""
 
     azure_openai_endpoint: str = ""
+    azure_openai_deployment_name: str = "gpt-realtime-1.5"
     azure_openai_api_key: str = ""
-    azure_openai_api_version: str = "2024-10-01-preview"
 
     firebase_database_url: str = ""
     firebase_service_account_json: str = ""
@@ -49,16 +43,15 @@ class Settings(BaseSettings):
     drawing_complete_timeout_seconds: float = Field(default=300.0, ge=30.0, le=1_800.0)
 
     @model_validator(mode="after")
-    def use_master_key_for_proxy(self) -> Self:
-        if not self.litellm_proxy_api_key and self.litellm_master_key:
-            self.litellm_proxy_api_key = self.litellm_master_key
-        self.litellm_proxy_http_url = self.litellm_proxy_http_url.rstrip("/")
-        self.litellm_proxy_ws_url = self.litellm_proxy_ws_url.rstrip("/")
+    def normalize_urls(self) -> Self:
+        self.azure_openai_endpoint = self.azure_openai_endpoint.rstrip("/")
         return self
 
     def runtime_errors(self) -> list[str]:
         required = {
-            "LITELLM_PROXY_API_KEY o LITELLM_MASTER_KEY": self.litellm_proxy_api_key,
+            "AZURE_OPENAI_ENDPOINT": self.azure_openai_endpoint,
+            "AZURE_OPENAI_DEPLOYMENT_NAME": self.azure_openai_deployment_name,
+            "AZURE_OPENAI_API_KEY": self.azure_openai_api_key,
             "FIREBASE_DATABASE_URL": self.firebase_database_url,
             "FIREBASE_SERVICE_ACCOUNT_JSON": self.firebase_service_account_json,
             "AZURE_SQL_CONNECTION_STRING": self.azure_sql_connection_string,

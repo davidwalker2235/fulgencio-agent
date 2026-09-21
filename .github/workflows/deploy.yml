@@ -31,8 +31,7 @@ env:
   TF_VAR_image_name: fulgencio-agent:${{ github.sha }}
   TF_VAR_azure_openai_endpoint: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
   TF_VAR_azure_openai_api_key: ${{ secrets.AZURE_OPENAI_API_KEY }}
-  TF_VAR_azure_openai_api_version: ${{ secrets.AZURE_OPENAI_API_VERSION }}
-  TF_VAR_litellm_master_key: ${{ secrets.LITELLM_MASTER_KEY }}
+  TF_VAR_azure_openai_deployment_name: gpt-realtime-1.5
   TF_VAR_firebase_database_url: ${{ secrets.FIREBASE_DATABASE_URL }}
   TF_VAR_firebase_service_account_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
   TF_VAR_azure_sql_connection_string: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
@@ -108,8 +107,6 @@ jobs:
           required=(
             TF_VAR_azure_openai_endpoint
             TF_VAR_azure_openai_api_key
-            TF_VAR_azure_openai_api_version
-            TF_VAR_litellm_master_key
             TF_VAR_firebase_database_url
             TF_VAR_firebase_service_account_json
             TF_VAR_azure_sql_connection_string

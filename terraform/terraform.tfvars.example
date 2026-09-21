@@ -6,10 +6,9 @@ container_app_name  = "fulgencio-agent"
 location            = "West Europe"
 image_name          = "fulgencio-agent:latest"
 
-azure_openai_endpoint    = "https://replace-me.openai.azure.com/"
-azure_openai_api_key     = "replace-me"
-azure_openai_api_version = "2024-10-01-preview"
-litellm_master_key       = "replace-me"
+azure_openai_endpoint        = "https://es-aida-ai-proxy.openai.azure.com"
+azure_openai_api_key         = "replace-me"
+azure_openai_deployment_name = "gpt-realtime-1.5"
 
 firebase_database_url         = "https://replace-me-default-rtdb.firebaseio.com"
 firebase_service_account_json = "{\"type\":\"service_account\",\"project_id\":\"replace-me\"}"

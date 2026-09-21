@@ -1,7 +1,7 @@
 # Fulgencio Agent
 
-Servicio de voz en Python que conecta el protocolo WebSocket existente con
-`gpt-realtime-1.5` mediante LiteLLM. El modelo conversa y solicita herramientas;
+Servicio de voz en Python que conecta el protocolo WebSocket existente directamente con
+`gpt-realtime-1.5` en Azure OpenAI. El modelo conversa y solicita herramientas;
 el backend valida el flujo y ejecuta Azure SQL/Firebase de forma determinista.
 
 ## Desarrollo nativo
@@ -12,13 +12,15 @@ Requisitos: Python 3.11 y Microsoft ODBC Driver 18 for SQL Server.
 Copy-Item .env.example .env
 python -m venv .venv
 .\.venv\Scripts\pip install -r requirements.txt
-.\.venv\Scripts\python run_litellm_proxy.py
 .\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload
 ```
 
 Completa `.env` antes de arrancar. El WebSocket es `ws://localhost:8010/ws` y
 requiere Basic Auth. La entrada es PCM16 mono a 16 kHz; la salida `tts_chunk`
 es PCM16 a 24 kHz codificado en Base64.
+
+La clave del modelo se configura únicamente en `AZURE_OPENAI_API_KEY`. En
+producción debe existir como GitHub Actions repository secret con ese mismo nombre.
 
 ## Docker Compose
 
@@ -27,8 +29,8 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Solo el agente se publica en `localhost:8010`; LiteLLM queda dentro de la red de
-Compose.
+El agente se publica en `localhost:8010` y se conecta directamente al endpoint
+Realtime GA de Azure OpenAI.
 
 ## Verificación
 
@@ -37,7 +39,7 @@ python -m unittest discover -s tests -v
 ```
 
 - `GET /health/live`: proceso activo.
-- `GET /health/ready`: comprueba LiteLLM, Azure SQL y Firebase.
+- `GET /health/ready`: comprueba Azure OpenAI, Azure SQL y Firebase.
 - `WS /ws`: una única sesión activa.
 
 ## Despliegue
@@ -45,7 +47,7 @@ python -m unittest discover -s tests -v
 El directorio `terraform/` usa el Resource Group `fulgencio-rg`, el ACR
 `fulgencioacr`, la identidad `fulgencio-identity` y el entorno
 `fulgencio-env` ya existentes. Solo crea la Container App `fulgencio-agent`,
-con una réplica y dos contenedores: `agent` y `litellm`. El workflow
+con una réplica y un contenedor `agent`. El workflow
 `.github/workflows/deploy.yml` ejecuta pruebas, valida Terraform, publica la
 imagen en el ACR compartido, despliega y comprueba readiness.
 
@@ -56,8 +58,7 @@ los secretos de GitHub indicados al final de este documento.
 ### GitHub Secrets
 
 - `AZURE_CREDENTIALS`: JSON de una service principal.
-- `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`.
-- `LITELLM_MASTER_KEY`.
+- `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`.
 - `FIREBASE_DATABASE_URL`, `FIREBASE_SERVICE_ACCOUNT_JSON`.
 - `AZURE_SQL_CONNECTION_STRING`.
 - `FULGENCIO_WS_BASIC_USERNAME`, `FULGENCIO_WS_BASIC_PASSWORD`.

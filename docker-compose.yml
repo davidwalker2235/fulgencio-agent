@@ -6,37 +6,8 @@ services:
     env_file:
       - .env
     environment:
-      LITELLM_PROXY_HTTP_URL: http://litellm:4000
-      LITELLM_PROXY_WS_URL: ws://litellm:4000
-      LITELLM_PROXY_API_KEY: ${LITELLM_MASTER_KEY}
       # Solo desarrollo local: el navegador no puede enviar Authorization
       # personalizado al abrir un WebSocket. Producción mantiene el valor
       # predeterminado (true) porque no usa este override.
       WS_BASIC_AUTH_REQUIRED: "false"
-    depends_on:
-      litellm:
-        condition: service_healthy
-    restart: unless-stopped
-
-  litellm:
-    build: .
-    command: ["python", "/app/run_litellm_proxy.py"]
-    expose:
-      - "4000"
-    env_file:
-      - .env
-    environment:
-      LITELLM_HOST: 0.0.0.0
-      LITELLM_PORT: "4000"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3)",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 12
     restart: unless-stopped

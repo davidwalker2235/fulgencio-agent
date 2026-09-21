@@ -13,7 +13,7 @@ from app.agent.tools import ToolExecutor
 from app.core.config import Settings
 from app.domain.models import ConversationState
 from app.domain.ports import RobotGateway, UserRepository
-from app.realtime.client import LiteLLMRealtimeClient
+from app.realtime.client import AzureRealtimeClient
 from app.realtime.protocol import parse_function_call, to_frontend_events
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class VoiceSession:
         settings: Settings,
         users: UserRepository,
         robot: RobotGateway,
-        realtime_factory: Callable[[Settings], LiteLLMRealtimeClient] = LiteLLMRealtimeClient,
+        realtime_factory: Callable[[Settings], AzureRealtimeClient] = AzureRealtimeClient,
         conversation_instructions: str | None = None,
     ) -> None:
         self._settings = settings
@@ -77,7 +77,7 @@ class VoiceSession:
                     await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _receive_frontend(
-        self, frontend: WebSocket, realtime: LiteLLMRealtimeClient
+        self, frontend: WebSocket, realtime: AzureRealtimeClient
     ) -> None:
         while True:
             message = await frontend.receive()
@@ -97,7 +97,7 @@ class VoiceSession:
                 await realtime.append_audio(audio)
 
     async def _receive_realtime(
-        self, frontend: WebSocket, realtime: LiteLLMRealtimeClient
+        self, frontend: WebSocket, realtime: AzureRealtimeClient
     ) -> None:
         while True:
             event = await realtime.receive_event()
@@ -171,7 +171,7 @@ class VoiceSession:
                 )
 
     async def _monitor_drawing(
-        self, frontend: WebSocket, realtime: LiteLLMRealtimeClient
+        self, frontend: WebSocket, realtime: AzureRealtimeClient
     ) -> None:
         try:
             outcome = await self._robot.wait_for_drawing_completion(
@@ -220,7 +220,7 @@ class VoiceSession:
             self._drawing_monitor = None
 
     async def _handle_drawing_start_timeout(
-        self, realtime: LiteLLMRealtimeClient
+        self, realtime: AzureRealtimeClient
     ) -> None:
         if self._machine.state is not ConversationState.DRAWING:
             return
@@ -233,7 +233,7 @@ class VoiceSession:
         )
 
     async def _handle_late_drawing_start(
-        self, realtime: LiteLLMRealtimeClient
+        self, realtime: AzureRealtimeClient
     ) -> None:
         if not self._drawing_start_observation_active:
             return
@@ -246,7 +246,7 @@ class VoiceSession:
 
     async def _request_response(
         self,
-        realtime: LiteLLMRealtimeClient,
+        realtime: AzureRealtimeClient,
         instructions: str | None = None,
     ) -> None:
         async with self._response_lock:
@@ -262,7 +262,7 @@ class VoiceSession:
                 self._response_idle.set()
                 raise
 
-    async def _complete_response(self, realtime: LiteLLMRealtimeClient) -> None:
+    async def _complete_response(self, realtime: AzureRealtimeClient) -> None:
         async with self._response_lock:
             self._response_idle.set()
             if not self._response_pending:
@@ -277,7 +277,7 @@ class VoiceSession:
                 self._response_idle.set()
                 raise
 
-    async def _interrupt_active_response(self, realtime: LiteLLMRealtimeClient) -> None:
+    async def _interrupt_active_response(self, realtime: AzureRealtimeClient) -> None:
         if self._response_idle.is_set():
             return
         await realtime.cancel_response()

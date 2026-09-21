@@ -1,2 +1,1 @@
-"""LiteLLM Realtime transport and protocol adaptation."""
-
+"""Azure OpenAI Realtime transport and protocol adaptation."""

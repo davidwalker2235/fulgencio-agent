@@ -42,10 +42,6 @@ resource "azurerm_container_app" "main" {
     value = var.azure_openai_api_key
   }
   secret {
-    name  = "litellm-master-key"
-    value = var.litellm_master_key
-  }
-  secret {
     name  = "firebase-service-account"
     value = var.firebase_service_account_json
   }
@@ -73,20 +69,16 @@ resource "azurerm_container_app" "main" {
       memory = "1.5Gi"
 
       env {
-        name  = "MODEL_NAME"
-        value = "gpt-realtime-1.5"
+        name  = "AZURE_OPENAI_ENDPOINT"
+        value = var.azure_openai_endpoint
       }
       env {
-        name  = "LITELLM_PROXY_HTTP_URL"
-        value = "http://localhost:4000"
+        name  = "AZURE_OPENAI_DEPLOYMENT_NAME"
+        value = var.azure_openai_deployment_name
       }
       env {
-        name  = "LITELLM_PROXY_WS_URL"
-        value = "ws://localhost:4000"
-      }
-      env {
-        name        = "LITELLM_PROXY_API_KEY"
-        secret_name = "litellm-master-key"
+        name        = "AZURE_OPENAI_API_KEY"
+        secret_name = "azure-openai-api-key"
       }
       env {
         name  = "FIREBASE_DATABASE_URL"
@@ -126,50 +118,6 @@ resource "azurerm_container_app" "main" {
         interval_seconds        = 10
         timeout                 = 10
         failure_count_threshold = 10
-      }
-    }
-
-    container {
-      name    = "litellm"
-      image   = local.agent_image
-      command = ["python"]
-      args    = ["/app/run_litellm_proxy.py"]
-      cpu     = 0.75
-      memory  = "1.5Gi"
-
-      env {
-        name  = "AZURE_OPENAI_ENDPOINT"
-        value = var.azure_openai_endpoint
-      }
-      env {
-        name        = "AZURE_OPENAI_API_KEY"
-        secret_name = "azure-openai-api-key"
-      }
-      env {
-        name  = "AZURE_OPENAI_API_VERSION"
-        value = var.azure_openai_api_version
-      }
-      env {
-        name        = "LITELLM_MASTER_KEY"
-        secret_name = "litellm-master-key"
-      }
-      env {
-        name  = "LITELLM_HOST"
-        value = "0.0.0.0"
-      }
-      env {
-        name  = "LITELLM_PORT"
-        value = "4000"
-      }
-
-      liveness_probe {
-        transport               = "HTTP"
-        port                    = 4000
-        path                    = "/health/liveliness"
-        initial_delay           = 20
-        interval_seconds        = 20
-        timeout                 = 3
-        failure_count_threshold = 3
       }
     }
   }

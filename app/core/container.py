@@ -67,11 +67,11 @@ class AppContainer:
     async def _run_readiness_checks(self) -> list[str]:
         assert self.users is not None and self.robot is not None
 
-        async def check_litellm() -> None:
-            headers = {"Authorization": f"Bearer {self.settings.litellm_proxy_api_key}"}
+        async def check_azure_openai() -> None:
+            headers = {"api-key": self.settings.azure_openai_api_key}
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(
-                    f"{self.settings.litellm_proxy_http_url}/health/liveliness",
+                    f"{self.settings.azure_openai_endpoint}/openai/v1/models",
                     headers=headers,
                 )
                 response.raise_for_status()
@@ -79,7 +79,7 @@ class AppContainer:
         checks = {
             "azure_sql": self.users.check_connection(),
             "firebase": self.robot.check_connection(),
-            "litellm": check_litellm(),
+            "azure_openai": check_azure_openai(),
         }
         results = await asyncio.gather(*checks.values(), return_exceptions=True)
         return [name for name, result in zip(checks, results) if isinstance(result, Exception)]
