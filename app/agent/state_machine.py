@@ -37,6 +37,12 @@ class ConversationStateMachine:
         self.pending_number = number
         self.state = ConversationState.AWAITING_CONFIRMATION
 
+    def correct_number(self, number: int) -> None:
+        self._require(ConversationState.AWAITING_CONFIRMATION)
+        if isinstance(number, bool) or number <= 0:
+            raise InvalidTransitionError("El número debe ser un entero positivo")
+        self.pending_number = number
+
     def reject_number(self) -> None:
         self._require(ConversationState.AWAITING_CONFIRMATION)
         self.pending_number = None

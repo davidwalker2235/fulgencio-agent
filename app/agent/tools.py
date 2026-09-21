@@ -63,7 +63,10 @@ class ToolExecutor:
         number = int(value)
         if number != value:
             raise ValueError("El número debe ser un entero positivo")
-        self.machine.capture_number(number)
+        if self.machine.state.value == "awaiting_confirmation":
+            self.machine.correct_number(number)
+        else:
+            self.machine.capture_number(number)
         return ToolResult(
             "capture_number",
             "ok",
