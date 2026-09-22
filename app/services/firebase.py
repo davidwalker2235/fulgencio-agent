@@ -48,7 +48,7 @@ class FirebaseRobotGateway:
         try:
             value = await asyncio.to_thread(self._status.get)
         except Exception as exc:
-            raise FirebaseError("No se pudo leer el estado del robot") from exc
+            raise FirebaseError("Could not read the robot status") from exc
         return str(value or "unknown").strip().lower()
 
     async def publish_caricature(self, user: UserRecord) -> None:
@@ -60,7 +60,7 @@ class FirebaseRobotGateway:
         try:
             await asyncio.to_thread(self._root.update, payload)
         except Exception as exc:
-            raise FirebaseError("No se pudo enviar la caricatura al robot") from exc
+            raise FirebaseError("Could not send the caricature to the robot") from exc
 
     async def publish_gift(self) -> None:
         payload = {
@@ -70,7 +70,7 @@ class FirebaseRobotGateway:
         try:
             await asyncio.to_thread(self._robot_action.set, payload)
         except Exception as exc:
-            raise FirebaseError("No se pudo solicitar el regalo") from exc
+            raise FirebaseError("Could not request the gift") from exc
 
     async def wait_for_drawing_completion(
         self,
@@ -83,7 +83,7 @@ class FirebaseRobotGateway:
         while time.monotonic() < start_deadline:
             status = await self.get_status()
             if status in self.FAILURE_STATES:
-                return DrawingOutcome(status, False, "El robot ha informado de un fallo")
+                return DrawingOutcome(status, False, "The robot reported a failure")
             if status == "drawing":
                 break
             await asyncio.sleep(self._poll_interval)
@@ -96,7 +96,7 @@ class FirebaseRobotGateway:
             while True:
                 status = await self.get_status()
                 if status in self.FAILURE_STATES:
-                    return DrawingOutcome(status, False, "El robot ha informado de un fallo")
+                    return DrawingOutcome(status, False, "The robot reported a failure")
                 if status == "drawing":
                     if start_observation and on_late_start is not None:
                         await on_late_start()
@@ -107,11 +107,11 @@ class FirebaseRobotGateway:
         while time.monotonic() < completion_deadline:
             status = await self.get_status()
             if status in self.FAILURE_STATES:
-                return DrawingOutcome(status, False, "El dibujo terminó con un fallo")
+                return DrawingOutcome(status, False, "The drawing finished with a failure")
             if status == "idle":
-                return DrawingOutcome("idle", True, "La caricatura está lista")
+                return DrawingOutcome("idle", True, "The caricature is ready")
             await asyncio.sleep(self._poll_interval)
-        return DrawingOutcome("timeout", False, "El dibujo no terminó a tiempo")
+        return DrawingOutcome("timeout", False, "The drawing did not finish in time")
 
     async def check_connection(self) -> None:
         await self.get_status()

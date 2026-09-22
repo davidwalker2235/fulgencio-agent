@@ -25,7 +25,7 @@ class ToolExecutor:
         if cached is not None:
             return cached
         if not self.machine.register_call(call_id):
-            return ToolResult(name, "error", "Llamada duplicada o sin identificador")
+            return ToolResult(name, "error", "Duplicate call or missing identifier")
 
         try:
             result = await self._dispatch(name, arguments)
@@ -41,28 +41,28 @@ class ToolExecutor:
             return self._capture_number(arguments)
         if name == "confirm_number":
             return await self._confirm_number(arguments)
-        raise InvalidTransitionError(f"Herramienta desconocida: {name}")
+        raise InvalidTransitionError(f"Unknown tool: {name}")
 
     async def _choose_experience(self, arguments: dict[str, Any]) -> ToolResult:
         experience = Experience(arguments["experience"])
         self.machine.choose_experience(experience)
         if experience is Experience.CARICATURE:
             return ToolResult(
-                "choose_experience", "ok", "Opción caricatura seleccionada; solicita el número"
+                "choose_experience", "ok", "Caricature selected; ask for the number"
             )
 
         await self._require_idle()
         await self._robot.publish_gift()
         self.machine.finish_gift()
-        return ToolResult("choose_experience", "ok", "El regalo se ha solicitado correctamente")
+        return ToolResult("choose_experience", "ok", "The gift was requested successfully")
 
     def _capture_number(self, arguments: dict[str, Any]) -> ToolResult:
         value = arguments["number"]
         if isinstance(value, bool):
-            raise ValueError("El número debe ser un entero positivo")
+            raise ValueError("The number must be a positive integer")
         number = int(value)
         if number != value:
-            raise ValueError("El número debe ser un entero positivo")
+            raise ValueError("The number must be a positive integer")
         if self.machine.state.value == "awaiting_confirmation":
             self.machine.correct_number(number)
         else:
@@ -70,42 +70,42 @@ class ToolExecutor:
         return ToolResult(
             "capture_number",
             "ok",
-            "Número capturado; pide confirmación explícita",
+            "Number captured; ask for explicit confirmation",
             {"number": number},
         )
 
     async def _confirm_number(self, arguments: dict[str, Any]) -> ToolResult:
         confirmed = arguments["confirmed"]
         if not isinstance(confirmed, bool):
-            raise ValueError("La confirmación debe ser true o false")
+            raise ValueError("Confirmation must be true or false")
         if not confirmed:
             self.machine.reject_number()
             return ToolResult(
-                "confirm_number", "ok", "Número rechazado; vuelve a pedirlo"
+                "confirm_number", "ok", "Number rejected; ask for it again"
             )
 
         user_id = self.machine.pending_number
         if user_id is None:
-            raise InvalidTransitionError("No hay un número pendiente")
+            raise InvalidTransitionError("There is no pending number")
         user = await self._users.get_by_id(user_id)
         if user is None:
             self.machine.reset_number()
             return ToolResult(
-                "confirm_number", "not_found", "No existe un usuario con ese número; pide otro"
+                "confirm_number", "not_found", "No user exists with that number; ask for another"
             )
         if not user.has_caricature:
             self.machine.reset_number()
             return ToolResult(
                 "confirm_number",
                 "not_found",
-                "El usuario no tiene caricatura disponible; pide otro número",
+                "The user has no caricature available; ask for another number",
             )
 
         await self._require_idle()
         await self._robot.publish_caricature(user)
         self.machine.start_drawing()
         return ToolResult(
-            "confirm_number", "ok", "La caricatura se ha enviado al robot"
+            "confirm_number", "ok", "The caricature was sent to the robot"
         )
 
     async def _require_idle(self) -> None:

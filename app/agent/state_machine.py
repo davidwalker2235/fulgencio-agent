@@ -25,7 +25,7 @@ class ConversationStateMachine:
     def choose_experience(self, experience: Experience) -> None:
         self._require(ConversationState.OFFERING_OPTIONS)
         if self.action_published:
-            raise InvalidTransitionError("Ya se ha publicado una acción en esta sesión")
+            raise InvalidTransitionError("An action has already been published in this session")
         self.selected_experience = experience
         if experience is Experience.CARICATURE:
             self.state = ConversationState.AWAITING_NUMBER
@@ -33,14 +33,14 @@ class ConversationStateMachine:
     def capture_number(self, number: int) -> None:
         self._require(ConversationState.AWAITING_NUMBER)
         if isinstance(number, bool) or number <= 0:
-            raise InvalidTransitionError("El número debe ser un entero positivo")
+            raise InvalidTransitionError("The number must be a positive integer")
         self.pending_number = number
         self.state = ConversationState.AWAITING_CONFIRMATION
 
     def correct_number(self, number: int) -> None:
         self._require(ConversationState.AWAITING_CONFIRMATION)
         if isinstance(number, bool) or number <= 0:
-            raise InvalidTransitionError("El número debe ser un entero positivo")
+            raise InvalidTransitionError("The number must be a positive integer")
         self.pending_number = number
 
     def reject_number(self) -> None:
@@ -55,7 +55,7 @@ class ConversationStateMachine:
     def start_drawing(self) -> None:
         self._require(ConversationState.AWAITING_CONFIRMATION)
         if self.pending_number is None:
-            raise InvalidTransitionError("No hay un número confirmado")
+            raise InvalidTransitionError("There is no confirmed number")
         self._mark_action_published()
         self.state = ConversationState.DRAWING
 
@@ -78,11 +78,11 @@ class ConversationStateMachine:
 
     def _mark_action_published(self) -> None:
         if self.action_published:
-            raise InvalidTransitionError("Ya se ha publicado una acción en esta sesión")
+            raise InvalidTransitionError("An action has already been published in this session")
         self.action_published = True
 
     def _require(self, expected: ConversationState) -> None:
         if self.state is not expected:
             raise InvalidTransitionError(
-                f"Transición no permitida desde {self.state.value}; se esperaba {expected.value}"
+                f"Transition not allowed from {self.state.value}; expected {expected.value}"
             )

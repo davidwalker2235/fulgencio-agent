@@ -186,8 +186,8 @@ class VoiceSession:
             if outcome.completed:
                 await self._request_response(
                     realtime,
-                    "Anuncia que la caricatura está lista y vuelve a ofrecer las opciones "
-                    "disponibles por si el usuario quiere otra experiencia."
+                    "Announce briefly that the caricature is ready and offer the available options "
+                    "again in case the user wants another experience."
                 )
             else:
                 await self._send_frontend(
@@ -195,8 +195,8 @@ class VoiceSession:
                 )
                 await self._request_response(
                     realtime,
-                    "Informa brevemente de que el robot no pudo terminar la caricatura. "
-                    "No digas que está lista y vuelve a ofrecer las opciones disponibles."
+                    "Briefly say that the robot could not finish the caricature. Do not say it is "
+                    "ready, and offer the available options again."
                 )
         except asyncio.CancelledError:
             raise
@@ -207,14 +207,14 @@ class VoiceSession:
                 self._machine.reset_for_next_experience()
             await self._send_frontend(
                 frontend,
-                {"type": "error", "message": "No se pudo comprobar el estado del dibujo"},
+                {"type": "error", "message": "Could not check the drawing status"},
             )
             await realtime.configure(self._machine, self._conversation_instructions)
             await self._interrupt_active_response(realtime)
             await self._request_response(
                 realtime,
-                "Informa de que no puedes confirmar que la caricatura haya terminado. "
-                "No afirmes que está lista y vuelve a ofrecer las opciones disponibles."
+                "Say that you cannot confirm whether the caricature has finished. Do not claim it "
+                "is ready, and offer the available options again."
             )
         finally:
             self._drawing_monitor = None
@@ -227,9 +227,8 @@ class VoiceSession:
         self._drawing_start_observation_active = True
         await self._request_response(
             realtime,
-            "Informa con calma de que parece que el robot todavía no ha empezado a dibujar "
-            "la caricatura y que vas a comprobar qué ocurre. No cierres la conversación ni "
-            "digas que la caricatura ha terminado.",
+            "Calmly say that the robot may not have started drawing yet and that you will check. "
+            "Do not end the conversation or say that the caricature is finished.",
         )
 
     async def _handle_late_drawing_start(
@@ -240,8 +239,8 @@ class VoiceSession:
         self._drawing_start_observation_active = False
         await self._request_response(
             realtime,
-            "Informa brevemente y con entusiasmo de que el robot ya está dibujando la "
-            "caricatura. Continúa la conversación mientras trabaja.",
+            "Briefly and warmly say that the robot is now drawing the caricature. Continue the "
+            "conversation while it works.",
         )
 
     async def _request_response(

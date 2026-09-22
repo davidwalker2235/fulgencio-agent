@@ -104,8 +104,8 @@ class VoiceSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session._request_response.await_count, 2)  # type: ignore[attr-defined]
         warning = session._request_response.await_args_list[0].args[1]  # type: ignore[attr-defined]
         late = session._request_response.await_args_list[1].args[1]  # type: ignore[attr-defined]
-        self.assertIn("todavía no ha empezado", warning)
-        self.assertIn("ya está dibujando", late)
+        self.assertIn("may not have started drawing yet", warning)
+        self.assertIn("robot is now drawing", late)
 
     async def test_custom_conversation_is_configured_before_initial_greeting(self) -> None:
         realtime = FakeRealtime()

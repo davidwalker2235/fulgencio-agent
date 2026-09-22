@@ -15,9 +15,8 @@ class RobotUnavailableError(FulgencioError):
 
     def __init__(self, status: str) -> None:
         self.status = status
-        super().__init__(f"El robot no está disponible: {status}")
+        super().__init__(f"The robot is not available: {status}")
 
 
 class FirebaseError(FulgencioError):
     """Firebase could not read status or publish an action."""
-
