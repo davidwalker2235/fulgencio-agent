@@ -53,7 +53,9 @@ class VoiceSession:
             )
             await self._request_response(
                 realtime,
-                "Start the conversation by following the active conversational instructions."
+                "Start with exactly this brief German greeting: 'Hallo, ich bin Fulgencio. "
+                "Karikatur oder Geschenk?' Do not add an English introduction. Continue in German "
+                "until the user explicitly asks for another language."
             )
             frontend_task = asyncio.create_task(self._receive_frontend(frontend, realtime))
             realtime_task = asyncio.create_task(self._receive_realtime(frontend, realtime))
