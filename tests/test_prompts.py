@@ -20,8 +20,8 @@ class PromptCompositionTests(unittest.TestCase):
 
         self.assertIn(DEFAULT_CONVERSATION_INSTRUCTIONS, instructions)
         self.assertIn(IMMUTABLE_INSTRUCTIONS, instructions)
-        self.assertIn("make you a caricature", instructions)
-        self.assertIn("give you a gift", instructions)
+        self.assertIn("Karikatur", instructions)
+        self.assertIn("Geschenk?", instructions)
         self.assertIn("Use German by default", instructions)
         self.assertIn("Switch to any other language only when the user explicitly asks for it", instructions)
 
