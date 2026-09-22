@@ -23,10 +23,10 @@ class PromptCompositionTests(unittest.TestCase):
         self.assertIn("make you a caricature", instructions)
         self.assertIn("give you a gift", instructions)
         self.assertIn("Use German by default", instructions)
-        self.assertIn("explicitly asks for English", instructions)
+        self.assertIn("Switch to any other language only when the user explicitly asks for it", instructions)
 
     def test_custom_conversation_replaces_only_conversation_layer(self) -> None:
-        custom = "Eres una guía de museo. Limita la charla a la exposición actual."
+        custom = "You are a museum guide. Keep the conversation focused on the current exhibition."
 
         instructions = instructions_for(self.machine, custom)
 
