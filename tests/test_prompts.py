@@ -22,8 +22,8 @@ class PromptCompositionTests(unittest.TestCase):
         self.assertIn(IMMUTABLE_INSTRUCTIONS, instructions)
         self.assertIn("make you a caricature", instructions)
         self.assertIn("give you a gift", instructions)
-        self.assertIn("Use English by default", instructions)
-        self.assertIn("asks for German", instructions)
+        self.assertIn("Use German by default", instructions)
+        self.assertIn("explicitly asks for English", instructions)
 
     def test_custom_conversation_replaces_only_conversation_layer(self) -> None:
         custom = "Eres una guía de museo. Limita la charla a la exposición actual."
